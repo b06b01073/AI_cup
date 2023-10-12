@@ -1,0 +1,5 @@
+__pycache__
+game.txt
+debug.txt
+*.pth
+dataset
