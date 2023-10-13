@@ -5,8 +5,8 @@ from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 import torch
-from ViT import ViT
 import govars
+from torchvision.models.vision_transformer import VisionTransformer as ViT
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'Training on {device}')
@@ -49,6 +49,7 @@ def test(dataset, net, e):
     total_preds = 0
     with torch.no_grad():
         for iter, (states, target) in enumerate(tqdm(dataset, desc=f'epoch {e}')):
+
             states = states.squeeze(dim=0)
             target = target.squeeze(dim=0)
 
@@ -80,38 +81,47 @@ if __name__ == '__main__':
     parser.add_argument('--weight_decay', '--wd', default=0, type=float)
     parser.add_argument('--label_smoothing', '--ls', default=0, type=float)
     parser.add_argument('--pretrained', '--pt', type=str)
+    parser.add_argument('--patience', type=int, default=15)
+    parser.add_argument('--split', '-s', type=float, default=0.9)
 
 
     args = parser.parse_args()
     path = args.path
-    train_set, val_set = GoDataset.get_loader(path)
+    train_set, val_set = GoDataset.get_loader(path, args.split)
     # net = model.get_model(args.model).to(device)
     if args.pretrained is not None:
         print(f'loading pretrained model from {args.pretrained}')
         net = torch.load(args.pretrained)
     else:
         net = ViT(
-            img_shape=(govars.FEAT_CHNLS, govars.PADDED_SIZE, govars.PADDED_SIZE),
+            image_size=govars.PADDED_SIZE,
             patch_size=args.patch_size,
-            embedded_dim=args.embedded_dim,
-            encoder_layers=args.encoder_layer,
-            num_class=args.num_class,
-            num_head=args.num_head,
-            drop=args.drop
+            num_classes=args.num_class,
+            num_heads=args.num_head,
+            num_layers=args.encoder_layer,
+            hidden_dim=args.embedded_dim,
+            mlp_dim=args.embedded_dim,
+            in_channels=govars.FEAT_CHNLS
         ).to(device)
-
 
 
     optimizer = optim.Adam(net.parameters(), lr=args.lr) # Adam somehow works poorly
     best_acc = 0
+    patience_count = 0
 
     for e in range(args.epoch):
         train_acc = train(train_set, net, optimizer, e)
         test_acc = test(val_set, net, e)
         
+        print(f'training acc: {train_acc:.4f}, testing acc: {test_acc:.4f}')
+
         if test_acc >= best_acc:
             best_acc = test_acc
+            patience_count = 0
             torch.save(net, f'{args.model}.pth')
             print(f'saving new model with test_acc: {test_acc}')
+        else:
+            patience_count += 1
 
-        print(f'training acc: {train_acc:.4f}, testing acc: {test_acc:.4f}')
+        if patience_count >= args.patience:
+            break
