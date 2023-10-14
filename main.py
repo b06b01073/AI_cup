@@ -7,18 +7,35 @@ import torch.optim as optim
 import torch
 import govars
 from torchvision.models.vision_transformer import VisionTransformer as ViT
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'Training on {device}')
 
 loss_func = nn.CrossEntropyLoss()
 
-def train(dataset, net, optimizer, e):
+def batch_topk_hit(preds, label_index, k=5):
+    preds = torch.softmax(preds, dim=1)
+    _, topk_indices = preds.topk(k, dim=-1) # output (batch, k)
+
+    # Check if the true label_index is in the top-k predicted labels for each example
+    batch_size, pred_size = preds.shape
+
+    correct = 0
+
+    for i in range(batch_size):
+        if label_index[i] in topk_indices[i]:
+            correct += 1
+
+    return correct
+
+def train(dataset, net, optimizer):
     net.train()
 
     correct_preds = 0
     total_preds = 0
-    acc_interval = int(len(dataset) * 0.1) 
+    acc_interval = int(len(dataset) * 0.05)
+    top5_hit = 0 
 
     for iter, (states, target) in enumerate(dataset):
         states = states.squeeze(dim=0)
@@ -39,10 +56,12 @@ def train(dataset, net, optimizer, e):
         target_index = torch.argmax(target, dim=1)
         # Compare the predicted classes to the target labels
         correct_preds += torch.sum(predicted_classes == target_index).item()
+        top5_hit += batch_topk_hit(preds, target_index)
+
         total_preds += target.shape[0]
 
-        if iter % acc_interval == 0:
-            print(f'Accumulate training accuracy [{100 * iter / len(dataset):.2f}%]: {correct_preds / total_preds:.4f}')
+        if iter % acc_interval == 0 and iter != 0:
+            print(f'Accumulate training accuracy [{100 * iter / len(dataset):.2f}%]: top1: {correct_preds / total_preds:.4f}, top5: {top5_hit / total_preds:.4f}')
 
     return correct_preds / total_preds
 
@@ -50,6 +69,7 @@ def test(dataset, net, e):
     net.eval()
     correct_preds = 0
     total_preds = 0
+    top5_hit = 0
     with torch.no_grad():
         for states, target in tqdm(dataset, desc=f'epoch {e}'):
 
@@ -65,14 +85,19 @@ def test(dataset, net, e):
             target_index = torch.argmax(target, dim=1)
             # Compare the predicted classes to the target labels
             correct_preds += torch.sum(predicted_classes == target_index).item()
+            top5_hit += batch_topk_hit(preds, target_index)
+
             total_preds += target.shape[0]
-    return correct_preds / total_preds
+
+
+    return correct_preds / total_preds, top5_hit / total_preds
+
 
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--path', type=str, default='./dataset/training/dan_train.csv')
     parser.add_argument('--model', type=str, default='ViT')
-    parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--eta_start', type=float, default=1e-3)
 
     parser.add_argument('--epoch', '-e', type=int, default=100)
     parser.add_argument('--patch_size', '-p', default=7, type=int)
@@ -84,9 +109,11 @@ if __name__ == '__main__':
     parser.add_argument('--weight_decay', '--wd', default=0, type=float)
     parser.add_argument('--label_smoothing', '--ls', default=0, type=float)
     parser.add_argument('--pretrained', '--pt', type=str)
-    parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--split', '-s', type=float, default=0.9)
     parser.add_argument('--save_dir', '--sd', type=str, default='./model_params')
+    parser.add_argument('--task', '-t', type=str, default='dan')
+    parser.add_argument('--T_max', type=int, default=5)
+    parser.add_argument('--eta_min', type=float, default=1e-6)
 
 
     args = parser.parse_args()
@@ -97,7 +124,6 @@ if __name__ == '__main__':
 
     path = args.path
     train_set, val_set = GoDataset.get_loader(path, args.split)
-    # net = model.get_model(args.model).to(device)
     if args.pretrained is not None:
         print(f'loading pretrained model from {args.pretrained}')
         net = torch.load(args.pretrained)
@@ -114,26 +140,29 @@ if __name__ == '__main__':
         ).to(device)
 
 
-    optimizer = optim.Adam(net.parameters(), lr=args.lr) 
+    optimizer = optim.Adam(net.parameters(), lr=args.eta_start) 
+    scheduler = CosineAnnealingLR(optimizer, T_max=args.T_max, eta_min=args.eta_min, verbose=True)
     best_acc = 0
-    patience_count = 0
+    best_ai_cup_score = 0
 
     for e in range(args.epoch):
-        train_acc = train(train_set, net, optimizer, e)
-        test_acc = test(val_set, net, e)
+        train_acc = train(train_set, net, optimizer)
+        test_acc, top5_acc = test(val_set, net, e)
+        scheduler.step()
 
-        print(f'training acc: {train_acc:.4f}, testing acc: {test_acc:.4f}')
+        print(f'training acc: {train_acc:.4f}, testing acc: {test_acc:.4f}, test top5: {top5_acc:.4f}')
 
         if test_acc >= best_acc:
             best_acc = test_acc
-            patience_count = 0
-            torch.save(net, os.path.join(args.save_dir, f'{args.model}_{args.lr}_{args.encoder_layer}.pth'))
+            torch.save(net, os.path.join(args.save_dir, f'{args.model}_{args.encoder_layer}_{args.task}.pth'))
             print(f'saving new model with test_acc: {test_acc:.6f}')
-        else:
-            patience_count += 1
+        
+        test_ai_cup_score = 0.25 * test_acc + 0.1 * top5_acc
+        if test_ai_cup_score >= best_ai_cup_score:
+            best_ai_cup_score = test_ai_cup_score
+            torch.save(net, os.path.join(args.save_dir, f'ai_{args.model}_{args.encoder_layer}_{args.task}.pth'))
+            print(f'saving new model with best score: {test_acc:.6f}')
 
-        if patience_count >= args.patience:
-            break
 
     with open('./result.txt', 'a') as f:
-        f.write(f'lr: {args.lr}, l: {args.encoder_layer}, acc: {best_acc}\n')
+        f.write(f'l: {args.encoder_layer}, acc: {best_acc}, ai_cup_score: {best_ai_cup_score}\n')

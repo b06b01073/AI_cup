@@ -19,4 +19,4 @@ NUM_CHNLS = 6
 
 LAST_MOVE_PLANES = 4
 
-FEAT_CHNLS = 10 # (black, white, turn, invalid, recent moves * 4, empty, ones)
+FEAT_CHNLS = 10 # (black, white, turn, invalid, recent moves * 8, empty, ones)
