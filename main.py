@@ -97,7 +97,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--path', type=str, default='./dataset/training/dan_train.csv')
     parser.add_argument('--model', type=str, default='ViT')
-    parser.add_argument('--eta_start', type=float, default=1e-3)
+    parser.add_argument('--eta_start', type=float, default=4e-4)
 
     parser.add_argument('--epoch', '-e', type=int, default=100)
     parser.add_argument('--patch_size', '-p', default=7, type=int)
@@ -114,6 +114,7 @@ if __name__ == '__main__':
     parser.add_argument('--task', '-t', type=str, default='dan')
     parser.add_argument('--T_max', type=int, default=5)
     parser.add_argument('--eta_min', type=float, default=1e-6)
+    parser.add_argument('--patience', type=int, default=12)
 
 
     args = parser.parse_args()
@@ -144,8 +145,10 @@ if __name__ == '__main__':
     scheduler = CosineAnnealingLR(optimizer, T_max=args.T_max, eta_min=args.eta_min, verbose=True)
     best_acc = 0
     best_ai_cup_score = 0
+    patience_count = 0
 
     for e in range(args.epoch):
+        patience_count += 1
         train_acc = train(train_set, net, optimizer)
         test_acc, top5_acc = test(val_set, net, e)
         scheduler.step()
@@ -156,12 +159,18 @@ if __name__ == '__main__':
             best_acc = test_acc
             torch.save(net, os.path.join(args.save_dir, f'{args.model}_{args.encoder_layer}_{args.task}.pth'))
             print(f'saving new model with test_acc: {test_acc:.6f}')
+            patience_count = 0
         
         test_ai_cup_score = 0.25 * test_acc + 0.1 * top5_acc
         if test_ai_cup_score >= best_ai_cup_score:
             best_ai_cup_score = test_ai_cup_score
             torch.save(net, os.path.join(args.save_dir, f'ai_{args.model}_{args.encoder_layer}_{args.task}.pth'))
-            print(f'saving new model with best score: {test_acc:.6f}')
+            print(f'saving new model with best score: {test_ai_cup_score:.6f}')
+            patience_count = 0
+
+        if patience_count > args.patience:
+            break
+
 
 
     with open('./result.txt', 'a') as f:
