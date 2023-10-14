@@ -1,13 +1,12 @@
 from argparse import ArgumentParser
 import GoDataset
-import baseline_model
+import os
 from tqdm import tqdm
 import torch.nn as nn
 import torch.optim as optim
 import torch
 import govars
 from torchvision.models.vision_transformer import VisionTransformer as ViT
-from torchvision.models.swin_transformer import SwinTransformer as ST
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print(f'Training on {device}')
@@ -19,7 +18,7 @@ def train(dataset, net, optimizer, e):
 
     correct_preds = 0
     total_preds = 0
-    acc_interval = 1000
+    acc_interval = int(len(dataset) * 0.1) 
 
     for iter, (states, target) in enumerate(dataset):
         states = states.squeeze(dim=0)
@@ -52,7 +51,7 @@ def test(dataset, net, e):
     correct_preds = 0
     total_preds = 0
     with torch.no_grad():
-        for iter, (states, target) in enumerate(tqdm(dataset, desc=f'epoch {e}')):
+        for states, target in tqdm(dataset, desc=f'epoch {e}'):
 
             states = states.squeeze(dim=0)
             target = target.squeeze(dim=0)
@@ -85,11 +84,17 @@ if __name__ == '__main__':
     parser.add_argument('--weight_decay', '--wd', default=0, type=float)
     parser.add_argument('--label_smoothing', '--ls', default=0, type=float)
     parser.add_argument('--pretrained', '--pt', type=str)
-    parser.add_argument('--patience', type=int, default=15)
+    parser.add_argument('--patience', type=int, default=10)
     parser.add_argument('--split', '-s', type=float, default=0.9)
+    parser.add_argument('--save_dir', '--sd', type=str, default='./model_params')
 
 
     args = parser.parse_args()
+
+    if not os.path.exists(args.save_dir):
+        os.mkdir(args.save_dir)
+    
+
     path = args.path
     train_set, val_set = GoDataset.get_loader(path, args.split)
     # net = model.get_model(args.model).to(device)
@@ -122,10 +127,13 @@ if __name__ == '__main__':
         if test_acc >= best_acc:
             best_acc = test_acc
             patience_count = 0
-            torch.save(net, f'{args.model}.pth')
-            print(f'saving new model with test_acc: {test_acc}')
+            torch.save(net, os.path.join(args.save_dir, f'{args.model}_{args.lr}_{args.encoder_layer}.pth'))
+            print(f'saving new model with test_acc: {test_acc:.6f}')
         else:
             patience_count += 1
 
         if patience_count >= args.patience:
             break
+
+    with open('./result.txt', 'a') as f:
+        f.write(f'lr: {args.lr}, l: {args.encoder_layer}, acc: {best_acc}\n')

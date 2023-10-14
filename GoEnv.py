@@ -1,7 +1,6 @@
 import numpy as np
 import gogame
 import govars
-from copy import deepcopy
 
 class Go:
     def __init__(self, size=govars.SIZE):
@@ -13,6 +12,9 @@ class Go:
 
     def reset_game(self, size):
         self.recent_moves = np.zeros((govars.SIZE, govars.SIZE))
+        self.empty_plane = np.ones((govars.SIZE, govars.SIZE))
+        self.invalid_move = np.zeros((govars.SIZE, govars.SIZE))
+        self.one_plane = np.zeros((govars.SIZE, govars.SIZE))
         return gogame.init_state(size=size)
     
 
@@ -75,6 +77,11 @@ class Go:
 
 
         return np.copy(game_feature)
+    
+
+    def set_state(self, state):
+        # note that this doesn't set the game feature, use this will caution
+        self.game_state = np.copy(state)
     
     def get_state(self):
         return np.copy(self.game_state)

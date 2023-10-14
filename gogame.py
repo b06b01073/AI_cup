@@ -338,25 +338,31 @@ def batch_canonical_form(batch_state):
     return batch_state
 
 
-def random_symmetry(image):
+def random_symmetry(board, move):
     """
-    Returns a random symmetry of the image
-    :param image: A (C, BOARD_SIZE, BOARD_SIZE) numpy array, where C is any number
+    Returns a random symmetry of the board
+    :param board: A (C, BOARD_SIZE, BOARD_SIZE) numpy array, where C is any number
     :return:
     """
     orientation = np.random.randint(0, 8)
+    non_pass_moves = move[:govars.ACTION_SPACE - 1].reshape((govars.SIZE, govars.SIZE))
 
     if (orientation >> 0) % 2:
         # Horizontal flip
-        image = np.flip(image, 2)
+        board = np.flip(board, 2)
+        non_pass_moves = np.flip(non_pass_moves, 1)
     if (orientation >> 1) % 2:
         # Vertical flip
-        image = np.flip(image, 1)
+        board = np.flip(board, 1)
+        non_pass_moves = np.flip(non_pass_moves, 0)
     if (orientation >> 2) % 2:
         # Rotate 90 degrees
-        image = np.rot90(image, axes=(1, 2))
+        board = np.rot90(board, axes=(1, 2))
+        non_pass_moves = np.rot90(non_pass_moves, axes=(0, 1))
 
-    return image
+    move[:govars.ACTION_SPACE - 1] = non_pass_moves.flatten()
+
+    return board, move
 
 
 def all_symmetries(image):
