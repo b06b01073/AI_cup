@@ -212,7 +212,7 @@ def batch_update_pieces(batch_non_pass, batch_state, batch_adj_locs, batch_playe
 
 
 def adj_data(state, action2d, player):
-    neighbors = neighbor_deltas + action2d
+    neighbors = neighbor_deltas + action2d # up, down, left, right offset + base action coord
     valid = (neighbors >= 0) & (neighbors < state.shape[1])
     valid = np.prod(valid, axis=1)
     neighbors = neighbors[np.nonzero(valid)]

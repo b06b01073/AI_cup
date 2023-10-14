@@ -3,3 +3,4 @@ game.txt
 debug.txt
 *.pth
 dataset
+test.py

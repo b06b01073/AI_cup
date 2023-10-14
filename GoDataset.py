@@ -3,9 +3,10 @@ import GoParser
 from GoEnv import Go
 import govars
 import goutils
-import gogame
-
+import sys
 import numpy as np
+
+np.set_printoptions(threshold=sys.maxsize)
 
 class GoDataset(Dataset):
     def __init__(self, path):
@@ -20,11 +21,12 @@ class GoDataset(Dataset):
         game_states = []
         moves = []
 
-        # goutils.debug_game(game)
+        
 
-        last_move = 'W'
+        # we use the try block here since there are invalid moves in the dataset
         try:
-            for move_id, move in enumerate(game):
+            last_move = 'W'
+            for move in game:
                 if move[0] == last_move:
                     # there's an in-between pass move
                     go_move, move_onehot = goutils.move_encode(govars.PASS)
@@ -37,11 +39,10 @@ class GoDataset(Dataset):
                 go_move, move_onehot = goutils.move_encode(move) # go_move is for the go env, moves[move_id] is the one hot vector
 
                 # got to make sure the state is pushed to the list before state update
-                # print(np.pad(go_env.game_features(), (0, govars.PADDED_W, govars.PADDED_W)))
                 game_states.append(goutils.pad_board(go_env.game_features())) 
-                # game_states.append(go_env.game_features())
                 moves.append(move_onehot)
                 go_env.make_move(go_move)
+
                 last_move = move[0]
         except:
             pass
@@ -60,4 +61,7 @@ def get_loader(path, split):
 
 if __name__ == '__main__':
     dataset = GoDataset('./dataset/training/dan_train.csv')
-    c = dataset[0]
+    states, moves = dataset[0]
+    for (state, move) in zip(states, moves):
+        print(f'move: {move}')
+        print(f'state: {state}')
