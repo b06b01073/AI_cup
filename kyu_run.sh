@@ -2,7 +2,7 @@
 encoded_layer=(4 8 10)
 patch_size=(7 3)
 task="kyu"
-f="./dataset/training/dan_train.csv"
+f="./dataset/training/kyu_train.csv"
 
 for l in ${encoded_layer[@]}; do
     for p in ${patch_size[@]}; do
