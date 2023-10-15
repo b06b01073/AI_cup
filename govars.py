@@ -14,9 +14,13 @@ TURN_CHNL = 2 # if state[TURN_CHNL] == WHITE, then it is white to play
 INVD_CHNL = 3 
 PASS_CHNL = 4
 DONE_CHNL = 5
-
 NUM_CHNLS = 6
 
-LAST_MOVE_PLANES = 4
+ORI_FEAT_CHANNEL = 6 # (black, white, turn, invalid, empty, ones)
 
-FEAT_CHNLS = 10 # (black, white, turn, invalid, recent moves * 8, empty, ones)
+LAST_MOVE_PLANES = 4
+CAPTURE_PLANES = 4
+SELF_ATARI_PLANES = 4
+LIBERTY_PLANES = 8
+
+FEAT_CHNLS = ORI_FEAT_CHANNEL + LAST_MOVE_PLANES # (black, white, turn, invalid, recent moves * 8, empty, ones)

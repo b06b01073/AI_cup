@@ -68,20 +68,77 @@ class GoDataset(Dataset):
         return np.array(game_states, dtype=np.float32), np.array(moves, dtype=np.float32)
 
 
+class StyleDataset(Dataset):
+    def __init__(self, labels, games, augment):
+        self.labels = labels
+        self.games = games
+        self.augment = augment
+
+    def __len__(self):
+        return len(self.labels)
+    
+
+    def __getitem__(self, idx):
+        game = self.games[idx].split(',')
+        go_env = Go()
+
+        try:
+            last_move = 'W'
+            for move in game:
+
+                # handle the PASS scenario
+                if move[0] == last_move:
+                    # there's an in-between pass move
+                    go_move, _ = goutils.move_encode(govars.PASS)
+                    go_env.make_move(go_move)
+                    
+
+                go_move, _ = goutils.move_encode(move) # go_move is for the go env, moves[move_id] is the one hot vector
+
+                go_env.make_move(go_move)
+                last_move = move[0]
+        except:
+            pass
+        
+        game_features = go_env.game_features().astype(np.float32)
+        label_onehot = np.zeros((3, ), dtype=np.float32)
+        label_onehot[self.labels[idx] - 1] = 1
+        if self.augment:
+            sym_game_features = gogame.random_symmetry(game_features)
+            return goutils.pad_board(sym_game_features), label_onehot
+        else:
+            return goutils.pad_board(game_features), label_onehot
+            
+
 def get_loader(path, split):
     games = GoParser.file_parser(path)
     train_len = int(len(games) * split)
     train_games = games[:train_len]
     val_games = games[train_len:]
     train_dataset = GoDataset(train_games, augment=True)
-    val_dataset = GoDataset(val_games, augment=False)
+    test_dataset = GoDataset(val_games, augment=False)
 
-    return DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=12), DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=12)
+    return DataLoader(train_dataset, batch_size=1, shuffle=False, num_workers=12), DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=12)
+
+
+def style_loader(path, split):
+    labels, games = GoParser.style_parser(path)
+    train_len = int(len(games) * split)
+    train_labels, train_games = labels[:train_len], games[:train_len]
+    test_labels, test_games = labels[train_len:], games[train_len:]
+
+    train_dataset = StyleDataset(train_labels, train_games, augment=True)
+    test_dataset = StyleDataset(test_labels, test_games, augment=False)
+
+    return DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=12), DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=12)
 
 
 if __name__ == '__main__':
-    dataset = GoDataset('./dataset/training/dan_train.csv')
-    states, moves = dataset[0]
-    for (state, move) in zip(states, moves):
-        print(f'move: \n{goutils.move_2d_encode(np.argmax(move))}')
-        print(f'state:\n {gogame.str(state[:, 1:-1, 1:-1])}')
+    # dataset = GoDataset('./dataset/training/dan_train.csv')
+    # states, moves = dataset[0]
+    # for (state, move) in zip(states, moves):
+        # print(f'move: \n{goutils.move_2d_encode(np.argmax(move))}')
+        # print(f'state:\n {gogame.str(state[:, 1:-1, 1:-1])}')
+    labels, games = GoParser.style_parser('./dataset/training/play_style_train.csv')
+    dataset = StyleDataset(labels, games, augment=False)
+    print(dataset[0])

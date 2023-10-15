@@ -338,31 +338,43 @@ def batch_canonical_form(batch_state):
     return batch_state
 
 
-def random_symmetry(board, move):
+def random_symmetry(board, move=None):
     """
     Returns a random symmetry of the board
     :param board: A (C, BOARD_SIZE, BOARD_SIZE) numpy array, where C is any number
     :return:
     """
     orientation = np.random.randint(0, 8)
-    non_pass_moves = move[:govars.ACTION_SPACE - 1].reshape((govars.SIZE, govars.SIZE))
+
+    if move is not None:
+        non_pass_moves = move[:govars.ACTION_SPACE - 1].reshape((govars.SIZE, govars.SIZE))
 
     if (orientation >> 0) % 2:
         # Horizontal flip
         board = np.flip(board, 2)
-        non_pass_moves = np.flip(non_pass_moves, 1)
+
+        if move is not None:
+            non_pass_moves = np.flip(non_pass_moves, 1)
+
     if (orientation >> 1) % 2:
         # Vertical flip
         board = np.flip(board, 1)
-        non_pass_moves = np.flip(non_pass_moves, 0)
+
+        if move is not None:
+            non_pass_moves = np.flip(non_pass_moves, 0)
+
     if (orientation >> 2) % 2:
         # Rotate 90 degrees
         board = np.rot90(board, axes=(1, 2))
-        non_pass_moves = np.rot90(non_pass_moves, axes=(0, 1))
 
-    move[:govars.ACTION_SPACE - 1] = non_pass_moves.flatten()
+        if move is not None:
+            non_pass_moves = np.rot90(non_pass_moves, axes=(0, 1))
 
-    return board, move
+    if move is not None:
+        move[:govars.ACTION_SPACE - 1] = non_pass_moves.flatten()
+        return board, move
+    else:
+        return board
 
 
 def all_symmetries(image):
@@ -417,10 +429,10 @@ def str(state):
     size = state.shape[1]
     board_str += '\t'
     for i in range(size):
-        board_str += '{}'.format(i).ljust(2, ' ')
+        board_str += '{}'.format(chr(i + 97)).ljust(2, ' ')
     board_str += '\n'
     for i in range(size):
-        board_str += '{}\t'.format(i)
+        board_str += '{}\t'.format(chr(i + 97))
         for j in range(size):
             if state[0, i, j] == 1:
                 board_str += '○'
