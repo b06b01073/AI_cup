@@ -3,7 +3,7 @@ import torch
 import os
 
 class Trainer:
-    def __init__(self, optimizer, loss_func, save_dir, task, device='cuda'):
+    def __init__(self, optimizer=None, loss_func=None, save_dir=None, task=None, device='cuda'):
         self.optimizer = optimizer
         self.loss_func = loss_func
         self.save_dir = save_dir

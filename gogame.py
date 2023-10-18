@@ -46,18 +46,21 @@ def next_state(state, action1d, canonical=False):
     previously_passed = prev_player_passed(state)
     ko_protect = None
 
-    if passed:
+
+    if passed or state[govars.INVD_CHNL, action2d[0], action2d[1]] == 1:
         # We passed
         state[govars.PASS_CHNL] = 1
-        if previously_passed:
-            # Game ended
-            state[govars.DONE_CHNL] = 1
+
+        # disable the game ended here
+        # if previously_passed:
+        #     # Game ended
+        #     state[govars.DONE_CHNL] = 1
     else:
         # Move was not pass
         state[govars.PASS_CHNL] = 0
 
         # Assert move is valid
-        assert state[govars.INVD_CHNL, action2d[0], action2d[1]] == 0, ("Invalid move", action2d)
+        # assert state[govars.INVD_CHNL, action2d[0], action2d[1]] == 0, ("Invalid move", action2d)
 
         # Add piece
         state[player, action2d[0], action2d[1]] = 1

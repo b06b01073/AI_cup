@@ -17,6 +17,10 @@ def move_encode(move):
     return move_1d, one_hot
 
 
+def move_decode(action1d):
+    action2d = action1d // govars.SIZE, action1d % govars.SIZE
+    return chr(ord('a') + action2d[0]) + chr(ord('a') + action2d[1])
+
 def debug_game(game):
     go_env = Go()
     last_move = 'W'

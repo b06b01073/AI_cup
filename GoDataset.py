@@ -110,10 +110,13 @@ class StyleDataset(Dataset):
             return goutils.pad_board(game_features), label_onehot
             
 
-def get_loader(path, split):
+def get_loader(path, split, bootstrap=False):
     games = GoParser.file_parser(path)
     train_len = int(len(games) * split)
     train_games = games[:train_len]
+    if bootstrap:
+        train_games = bootstrap(train_games)
+
     val_games = games[train_len:]
     train_dataset = GoDataset(train_games, augment=True)
     test_dataset = GoDataset(val_games, augment=False)
@@ -130,7 +133,17 @@ def style_loader(path, split):
     train_dataset = StyleDataset(train_labels, train_games, augment=True)
     test_dataset = StyleDataset(test_labels, test_games, augment=False)
 
-    return DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=12), DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=12)
+    return DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=6), DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=6)
+
+
+def bootstrap(games, num_samples):
+    # note that the games "need to be split already"
+    bootstrap_games = []
+    for i in range(num_samples):
+        game_index = np.random.randint(0, len(games))
+        bootstrap_games.append(games[game_index])
+
+    return bootstrap_games
 
 
 if __name__ == '__main__':

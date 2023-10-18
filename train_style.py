@@ -99,6 +99,7 @@ if __name__ == '__main__':
     if args.pretrained is not None:
         print(f'loading pretrained model from {args.pretrained}')
         net = torch.load(args.pretrained)
+        net = net.to(device)
     else:
         net = ViT(
             image_size=govars.PADDED_SIZE,

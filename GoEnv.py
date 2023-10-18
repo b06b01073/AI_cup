@@ -123,7 +123,7 @@ class Go:
         ), axis=0)
 
 
-        return np.copy(game_feature)
+        return np.copy(game_feature).astype(np.float32)
     
 
     def set_state(self, state):

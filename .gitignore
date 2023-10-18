@@ -5,3 +5,5 @@ debug.txt
 dataset
 test.py
 *.txt
+result
+test_validation.py
