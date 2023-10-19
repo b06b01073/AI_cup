@@ -476,15 +476,7 @@ def str(state):
         board_str += '\n'
 
     black_area, white_area = areas(state)
-    done = game_ended(state)
-    ppp = prev_player_passed(state)
     t = turn(state)
-    if done:
-        game_state = 'END'
-    elif ppp:
-        game_state = 'PASSED'
-    else:
-        game_state = 'ONGOING'
-    board_str += '\tTurn: {}, Game State (ONGOING|PASSED|END): {}\n'.format('BLACK' if t == 0 else 'WHITE', game_state)
+    board_str += '\tTurn: {}\n'.format('BLACK' if t == 0 else 'WHITE')
     board_str += '\tBlack Area: {}, White Area: {}\n'.format(int(black_area), int(white_area))
     return board_str

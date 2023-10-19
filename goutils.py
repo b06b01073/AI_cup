@@ -17,9 +17,13 @@ def move_encode(move):
     return move_1d, one_hot
 
 
-def move_decode(action1d):
+def move_decode_char(action1d):
+    # decode the 1d move to the 2d char coord
     action2d = action1d // govars.SIZE, action1d % govars.SIZE
     return chr(ord('a') + action2d[0]) + chr(ord('a') + action2d[1])
+
+def move_decode(action1d):
+    return action1d // govars.SIZE, action1d % govars.SIZE
 
 def debug_game(game):
     go_env = Go()

@@ -30,7 +30,6 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', '-m',type=str)
     parser.add_argument('--test_file', '-t', type=str)
     parser.add_argument('--visualize', '-v', action='store_true')
-    parser.add_argument('--nag', '-n', action='store_true')
 
     args = parser.parse_args()
     net = torch.load(args.model_path).to(device)

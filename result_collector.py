@@ -8,17 +8,23 @@ from tqdm import tqdm
 import torch
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+def mask_moves(pred):
+    pred[govars.PASS] = float('-inf') # mask the pass move
+    return pred
+
+
 def predict(net, game_feature, file_name, visualize):
     last_position = goutils.pad_board(game_feature)
     last_position = torch.from_numpy(last_position).unsqueeze(dim=0).to(device)
 
     with torch.no_grad():
+        # Do TTA here
         pred = net(last_position).squeeze()
-        pred[govars.PASS] = float('-inf') # mask the pass move
+        pred = mask_moves(pred)
         pred = torch.softmax(pred, dim=0)
         top_moves = torch.topk(pred, k=5).indices
 
-        top_moves_coord = [adjust_coor(goutils.move_decode(top_move)) for top_move in top_moves]
+        top_moves_coord = [adjust_coor(goutils.move_decode_char(top_move)) for top_move in top_moves]
 
         if visualize:
             go_env.render()

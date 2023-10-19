@@ -25,32 +25,16 @@ class GoDataset(Dataset):
 
         
 
-        # we use the try block here since there are invalid moves in the dataset
-        try:
-            last_move = 'W'
-            for move in game:
+        # the invalid moves are replaced by a PASS move
+        last_move = 'W'
+        for move in game:
 
-                # handle the PASS scenario
-                if move[0] == last_move:
-                    # there's an in-between pass move
-                    go_move, move_onehot = goutils.move_encode(govars.PASS)
-                    game_features = go_env.game_features()
-
-                    if self.augment:
-                        sym_game_features, sym_move_onehot = gogame.random_symmetry(game_features, move_onehot)
-                        game_states.append(goutils.pad_board(sym_game_features))
-                        moves.append(sym_move_onehot)
-                    else:
-                        game_states.append(goutils.pad_board(game_features))
-                        moves.append(move_onehot)
-
-                    go_env.make_move(go_move)
-                    
-
-                go_move, move_onehot = goutils.move_encode(move) # go_move is for the go env, moves[move_id] is the one hot vector
-
-                # got to make sure the state is pushed to the list before state update
+            # handle the PASS scenario
+            if move[0] == last_move:
+                # there's an in-between pass move
+                go_move, move_onehot = goutils.move_encode(govars.PASS)
                 game_features = go_env.game_features()
+
                 if self.augment:
                     sym_game_features, sym_move_onehot = gogame.random_symmetry(game_features, move_onehot)
                     game_states.append(goutils.pad_board(sym_game_features))
@@ -60,11 +44,24 @@ class GoDataset(Dataset):
                     moves.append(move_onehot)
 
                 go_env.make_move(go_move)
+                
 
-                last_move = move[0]
-        except:
-            pass
-        
+            go_move, move_onehot = goutils.move_encode(move) # go_move is for the go env, moves[move_id] is the one hot vector
+
+            # got to make sure the state is pushed to the list before state update
+            game_features = go_env.game_features()
+            if self.augment:
+                sym_game_features, sym_move_onehot = gogame.random_symmetry(game_features, move_onehot)
+                game_states.append(goutils.pad_board(sym_game_features))
+                moves.append(sym_move_onehot)
+            else:
+                game_states.append(goutils.pad_board(game_features))
+                moves.append(move_onehot)
+
+            go_env.make_move(go_move)
+
+            last_move = move[0]
+    
         return np.array(game_states, dtype=np.float32), np.array(moves, dtype=np.float32)
 
 
