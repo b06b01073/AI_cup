@@ -60,6 +60,18 @@ def one_hot_decode(one_hot):
     return np.argmax(one_hot)
 
 
+def flip_board(state):
+    flip = np.random.random()
+    if flip > 0.5:
+        temp = state[govars.BLACK].copy()
+        state[govars.BLACK] = state[govars.WHITE]
+        state[govars.WHITE] = temp
+
+        new_turn = (int(np.max(state[govars.TURN_CHNL])) + 1) % 2
+        state[govars.TURN_CHNL] = new_turn
+
+    return state
+
 def board_augment(state, move):
     # note that the first channel of state is the feature channel, so we need to flip along the second channel, and rotate along the (1, 2) channels
     state_size = state.shape[1]

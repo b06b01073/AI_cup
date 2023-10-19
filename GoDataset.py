@@ -79,29 +79,31 @@ class StyleDataset(Dataset):
         game = self.games[idx].split(',')
         go_env = Go()
 
-        try:
-            last_move = 'W'
-            for move in game:
+        last_move = 'W'
+        for move in game:
 
-                # handle the PASS scenario
-                if move[0] == last_move:
-                    # there's an in-between pass move
-                    go_move, _ = goutils.move_encode(govars.PASS)
-                    go_env.make_move(go_move)
-                    
-
-                go_move, _ = goutils.move_encode(move) # go_move is for the go env, moves[move_id] is the one hot vector
-
+            # handle the PASS scenario
+            if move[0] == last_move:
+                # there's an in-between pass move
+                go_move, _ = goutils.move_encode(govars.PASS)
                 go_env.make_move(go_move)
-                last_move = move[0]
-        except:
-            pass
+                
+
+            go_move, _ = goutils.move_encode(move) # go_move is for the go env, moves[move_id] is the one hot vector
+
+            go_env.make_move(go_move)
+            last_move = move[0]
         
-        game_features = go_env.game_features().astype(np.float32)
-        label_onehot = np.zeros((3, ), dtype=np.float32)
+        game_features = go_env.game_features().astype(np.float32) # last 2 position
+
+
+        label_onehot = np.zeros((3, ), dtype=np.float32) # get the label
         label_onehot[self.labels[idx] - 1] = 1
+
         if self.augment:
+            # it seems like we can swap the black and white channels etc
             sym_game_features = gogame.random_symmetry(game_features)
+            sym_game_features = goutils.flip_board(sym_game_features)
             return goutils.pad_board(sym_game_features), label_onehot
         else:
             return goutils.pad_board(game_features), label_onehot
@@ -130,7 +132,7 @@ def style_loader(path, split):
     train_dataset = StyleDataset(train_labels, train_games, augment=True)
     test_dataset = StyleDataset(test_labels, test_games, augment=False)
 
-    return DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=6), DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=6)
+    return DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=6), DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=6)
 
 
 def bootstrap(games, num_samples):

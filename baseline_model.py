@@ -47,7 +47,11 @@ class ResNet(nn.Module):
         for _ in range(num_layers - 1):
             self.net.extend([ResBlock(hidden_dim, hidden_dim, kernel_size=3, stride=1, padding=1)])
 
-        self.fc = nn.Linear(hidden_dim * govars.SIZE * govars.SIZE, govars.ACTION_SPACE)
+        self.fc = nn.Sequential(
+            nn.Linear(hidden_dim * govars.PADDED_SIZE * govars.PADDED_SIZE, 1024),
+            nn.ReLU(),
+            nn.Linear(1024, 3)
+        )
         self.drop_out = nn.Dropout(p=0.2)
         
 
@@ -55,7 +59,7 @@ class ResNet(nn.Module):
         for module in self.net:
             x = module(x) 
         x = torch.flatten(x, start_dim=1)
-        x = self.drop_out(self.fc(x))
+        x = self.fc(x)
         return x
 
 

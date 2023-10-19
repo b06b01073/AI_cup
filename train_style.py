@@ -4,9 +4,11 @@ import torch
 import GoDataset
 import govars
 from torchvision.models.vision_transformer import VisionTransformer as ViT
+from My_ViT import ViT as MViT
 import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
+from baseline_model import ResNet
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -73,7 +75,7 @@ if __name__ == '__main__':
     parser.add_argument('--epoch', '-e', type=int, default=100)
     parser.add_argument('--patch_size', '-p', default=7, type=int)
     parser.add_argument('--embedded_dim', '-d', default=768, type=int)
-    parser.add_argument('--encoder_layer', '-l', default=6, type=int)
+    parser.add_argument('--encoder_layer', '-l', default=2, type=int)
     parser.add_argument('--num_class', '-c', default=3, type=int)
     parser.add_argument('--num_head', '-nh', default=8, type=int)
     parser.add_argument('--drop', default=0, type=float)
@@ -86,6 +88,7 @@ if __name__ == '__main__':
     parser.add_argument('--T_max', type=int, default=5)
     parser.add_argument('--eta_min', type=float, default=1e-5)
     parser.add_argument('--patience', type=int, default=12)
+    parser.add_argument('--resnet', action='store_true')
 
 
     args = parser.parse_args()
@@ -99,19 +102,22 @@ if __name__ == '__main__':
     if args.pretrained is not None:
         print(f'loading pretrained model from {args.pretrained}')
         net = torch.load(args.pretrained)
-        net = net.to(device)
+    if args.resnet:
+        print('Training ResNet')
+        net = ResNet()
     else:
-        net = ViT(
-            image_size=govars.PADDED_SIZE,
+        print('Training ViT')
+        net = MViT(
+            img_shape=(govars.FEAT_CHNLS, govars.PADDED_SIZE, govars.PADDED_SIZE),
             patch_size=args.patch_size,
-            num_classes=args.num_class,
-            num_heads=args.num_head,
-            num_layers=args.encoder_layer,
-            hidden_dim=args.embedded_dim,
-            mlp_dim=args.embedded_dim,
-            in_channels=govars.FEAT_CHNLS
-        ).to(device)
+            num_class=args.num_class,
+            num_head=args.num_head,
+            encoder_layers=args.encoder_layer,
+            embedded_dim=args.embedded_dim,
+            drop=args.drop
+        )
 
+    net = net.to(device)
 
     loss_func = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
     optimizer = optim.Adam(net.parameters(), lr=args.eta_start) 

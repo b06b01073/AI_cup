@@ -46,7 +46,7 @@ class Trainer:
                 break
 
         with open(f'{self.task}_result.txt', 'a') as f:
-            f.write(f'l: {self.encoder_layer}, acc: {best_acc}, ai_cup_score: {best_ai_cup_score}\n')
+            f.write(f'l: {encoder_layer}, acc: {best_acc}, ai_cup_score: {best_ai_cup_score}\n')
 
     
     def train(self, dataset, net, optimizer, loss_func):
