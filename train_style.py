@@ -104,7 +104,7 @@ if __name__ == '__main__':
         net = torch.load(args.pretrained)
     if args.resnet:
         print('Training ResNet')
-        net = ResNet()
+        net = ResNet(args.drop)
     else:
         print('Training ViT')
         net = MViT(
