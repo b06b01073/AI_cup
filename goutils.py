@@ -141,15 +141,50 @@ def mask_moves(pred):
     pred[govars.PASS] = float('-inf') # mask the pass move
     return pred
 
+def are_rectangles_overlapping(rectangle1, rectangle2):
+    x1, y1, width1, height1 = rectangle1
+    x2, y2, width2, height2 = rectangle2
+
+    if (x1 + width1 <= x2 or x2 + width2 <= x1 or y1 + height1 <= y2 or y2 + height2 <= y1):
+        return False 
+    else:
+        return True  
+    
+
+def zero_board(board, top_left_y, top_left_x, cropped_h, cropped_w):
+    board[govars.BLACK, top_left_y:top_left_y+cropped_h, top_left_x:top_left_x+cropped_w] = 0
+    board[govars.WHITE, top_left_y:top_left_y+cropped_h, top_left_x:top_left_x+cropped_w] = 0
+    board[govars.INVD_CHNL, top_left_y:top_left_y+cropped_h, top_left_x:top_left_x+cropped_w] = 0
+    return board
+
+
 def crop_board(board):
+    last_move_row, last_move_col = np.where(board[-1] == 1)
+    inhibit_size = govars.INHIBIT_CROP_SIZE
+    inhibit_top_left_y, inhibit_top_left_x = last_move_row - inhibit_size // 2, last_move_col - inhibit_size // 2 
+
+
+    cropped_h = np.random.randint(low=1, high=govars.CROP_SIZE + 1)
+    cropped_w = np.random.randint(low=1, high=govars.CROP_SIZE + 1)
+
+    while True:
+        crop_top_left_y, crop_top_left_x = np.random.randint(low=0, high=govars.SIZE), np.random.randint(low=0, high=govars.SIZE)
+
+        if crop_top_left_y + cropped_h - 1 > govars.SIZE - 1 or crop_top_left_x+ cropped_w - 1 > govars.SIZE - 1:
+            # out of bound
+            continue 
+
+        if not are_rectangles_overlapping((inhibit_top_left_x, inhibit_top_left_y, inhibit_size, inhibit_size), (crop_top_left_x, crop_top_left_y, cropped_w, cropped_h)):
+            board = zero_board(board, crop_top_left_y, crop_top_left_x, cropped_h, cropped_w)
+            break
+
     return board
 
 
 def strong_augment(board):
-    assert np.shape(board) == (govars.FEAT_CHNLS, govars.SIZE, govars.SIZE)
-    
-    board = crop_board(board)
+    board = np.copy(board)
 
+    board = crop_board(board)
     board = gogame.random_symmetry(board)
 
     return board

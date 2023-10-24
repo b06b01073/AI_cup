@@ -23,6 +23,10 @@ CAPTURE_PLANES = 4
 SELF_ATARI_PLANES = 4
 LIBERTY_PLANES = 8
 
-FEAT_CHNLS = ORI_FEAT_CHANNEL + LAST_MOVE_PLANES # (black, white, turn, invalid, recent moves * 8, empty, ones)
+FEAT_CHNLS = ORI_FEAT_CHANNEL + LAST_MOVE_PLANES # (black, white, turn, invalid, recent moves * 4, empty, ones)
 
 STYLE_CAT = 3
+
+INHIBIT_CROP_SIZE = 7 # the crop in strong_augment cannot crop the region center at the last move with size (5, 5)
+
+CROP_SIZE = 5 # crop a region with size (h, w), where h, w \in [1, 5]

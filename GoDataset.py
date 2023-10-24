@@ -125,13 +125,18 @@ class GoMatchDataset(Dataset):
 
     def __getitem__(self, idx):
         game = self.games[idx].split(',')
+        label = self.labels[idx] - 1
+        
         go_env = Go()
         game_len = len(game)
 
-        unlabeled_indices = np.random.choice(game_len, size=self.unlabeled_size, replace=True)
-        unlabeled_count = np.bincount(unlabeled_indices)
+        
+        if self.train:
+            unlabeled_indices = np.random.choice(game_len, size=self.unlabeled_size, replace=True)
 
-        unlabeled_states = []
+            unlabeled_count = np.bincount(unlabeled_indices)
+
+            unlabeled_states = []
 
 
         last_move = 'W'
@@ -151,19 +156,20 @@ class GoMatchDataset(Dataset):
 
             
             # push unlabeled data into unlabeled_states
-            if idx in unlabeled_indices:
-                for _ in range(unlabeled_count[idx]):
-                    unlabeled_states.append(go_env.game_features().astype(np.float32))
+            if self.train:
+                if idx in unlabeled_indices:
+                    for _ in range(unlabeled_count[idx]):
+                        unlabeled_states.append(go_env.game_features().astype(np.float32))
         
         labeled_state = go_env.game_features().astype(np.float32)
 
 
         label_onehot = np.zeros((3, ), dtype=np.float32) # get the label
-        label_onehot[self.labels[idx] - 1] = 1
+        label_onehot[label] = 1
         
         # test set
         if not self.train:
-            return goutils.pad_board(labeled_state), label_onehot
+            return goutils.pad_board(labeled_state), label
         
         # train set
         labeled_state = goutils.pad_board(self.weak_augment(labeled_state))
