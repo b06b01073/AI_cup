@@ -24,19 +24,17 @@ class PatchEmbedder(nn.Module):
     def __init__(self, num_patches, embedded_dim, drop):
         super().__init__()
         self.cls_token = nn.Parameter(torch.rand(1, embedded_dim))
-        self.pos_embedding = nn.Parameter(torch.rand(num_patches + 2, embedded_dim)) # patches + move + cls_token
+        self.pos_embedding = nn.Parameter(torch.rand(num_patches + 1, embedded_dim)) # patches + move + cls_token
         self.move_embedding = nn.Linear(govars.ACTION_SPACE, embedded_dim)
         self.dropout = nn.Dropout(p=drop)
     
-    def forward(self, x, move):
+    def forward(self, x):
         batch_size = x.shape[0]
         cls = repeat(self.cls_token, 'n e -> b n e', b=batch_size)
         pos_emb = repeat(self.pos_embedding, 'n e -> b n e', b=batch_size)
 
-        move = self.move_embedding(move)
-        move = rearrange(move, 'b (n e) -> b n e', n=1)
 
-        x = torch.cat([cls, x, move], dim=1)
+        x = torch.cat([cls, x], dim=1)
         x = x + pos_emb
 
 
@@ -140,9 +138,9 @@ class ViT(nn.Module):
         self.output_layer = Classifier(embedded_dim, num_class, drop)
 
 
-    def forward(self, x, last_move):
+    def forward(self, x):
         x = self.linear_proj(x)
-        x = self.patch_embedder(x, last_move)
+        x = self.patch_embedder(x)
 
         for layer in self.net:
             x = layer(x)

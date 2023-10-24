@@ -7,7 +7,10 @@ from torchvision.models.vision_transformer import VisionTransformer as ViT
 from My_ViT import ViT as MViT
 import torch.nn as nn
 import torch.optim as optim
+from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from tqdm import tqdm
+from baseline_model import ResNet
+from torchvision import models
 from baseline_model import ResNet
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -70,25 +73,25 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--path', type=str, default='./dataset/training/play_style_train.csv')
     parser.add_argument('--model', type=str, default='ViT')
-    parser.add_argument('--eta_start', type=float, default=1e-4)
+    parser.add_argument('--eta_start', type=float, default=3e-2)
 
-    parser.add_argument('--epoch', '-e', type=int, default=100)
+    parser.add_argument('--epoch', '-e', type=int, default=200)
     parser.add_argument('--patch_size', '-p', default=7, type=int)
     parser.add_argument('--embedded_dim', '-d', default=768, type=int)
-    parser.add_argument('--encoder_layer', '-l', default=2, type=int)
+    parser.add_argument('--encoder_layer', '-l', default=4, type=int)
     parser.add_argument('--num_class', '-c', default=3, type=int)
     parser.add_argument('--num_head', '-nh', default=8, type=int)
     parser.add_argument('--drop', default=0, type=float)
-    parser.add_argument('--weight_decay', '--wd', default=0, type=float)
+    parser.add_argument('--weight_decay', '--wd', default=5e-4, type=float)
     parser.add_argument('--label_smoothing', '--ls', default=0, type=float)
     parser.add_argument('--pretrained', '--pt', type=str)
     parser.add_argument('--split', '-s', type=float, default=0.9)
     parser.add_argument('--save_dir', '--sd', type=str, default='./model_params')
     parser.add_argument('--task', '-t', type=str, default='style')
     parser.add_argument('--T_max', type=int, default=5)
-    parser.add_argument('--eta_min', type=float, default=1e-5)
-    parser.add_argument('--patience', type=int, default=12)
     parser.add_argument('--resnet', action='store_true')
+    parser.add_argument('--momentum', type=float, default=0.9)
+    parser.add_argument('--nesterov', action='store_false')
 
 
     args = parser.parse_args()
@@ -104,7 +107,12 @@ if __name__ == '__main__':
         net = torch.load(args.pretrained)
     if args.resnet:
         print('Training ResNet')
-        net = ResNet(args.drop)
+        # net = ResNet(num_layers=20)
+        net = models.resnet18(weights=None)
+        new_conv1 = torch.nn.Conv2d(10, 64, kernel_size=7, stride=1, padding=3)
+        net.conv1 = new_conv1
+        in_features = net.fc.in_features
+        net.fc = torch.nn.Linear(in_features, args.num_class)
     else:
         print('Training ViT')
         net = MViT(
@@ -120,26 +128,24 @@ if __name__ == '__main__':
     net = net.to(device)
 
     loss_func = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
-    optimizer = optim.Adam(net.parameters(), lr=args.eta_start) 
-    # scheduler = CosineAnnealingLR(optimizer, T_max=args.T_max, eta_min=args.eta_min, verbose=True)
+    optimizer = optim.SGD(net.parameters(), lr=args.eta_start, momentum=args.momentum, nesterov=args.nesterov, weight_decay=args.weight_decay) 
+    scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=20)
     best_acc = 0
-    patience_count = 0
+
+    # optimizer = optim.Adam(net.parameters(), lr=args.eta_start)
 
     for e in range(args.epoch):
-        patience_count += 1
         train_acc = train(train_set, net, optimizer, loss_func)
         test_acc = test(val_set, net, e)
 
         print(f'training acc: {train_acc:.4f}, testing acc: {test_acc:.4f}')
+        print(f'learning rate: {scheduler.get_last_lr()}')
+        scheduler.step()
 
         if test_acc >= best_acc:
             best_acc = test_acc
             torch.save(net, os.path.join(args.save_dir, f'{args.model}_{args.patch_size}_{args.encoder_layer}_{args.task}.pth'))
             print(f'saving new model with test_acc: {test_acc:.6f}')
-            patience_count = 0
-        
-        if patience_count > args.patience:
-            break
 
 
     with open('./style_result.txt', 'a') as f:

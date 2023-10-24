@@ -9,13 +9,13 @@ class Baseline_CNN(nn.Module):
         
         self.net = nn.ModuleList([
             nn.Conv2d(govars.FEAT_CHNLS, hidden_dim, kernel_size=7, stride=1, padding=3), 
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Conv2d(hidden_dim, hidden_dim, kernel_size=5, stride=1, padding=2), 
-            nn.ReLU()
+            nn.LeakyReLU()
             ])
 
         for _ in range(num_layers - 1):
-            self.net.extend([nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, stride=1, padding=1), nn.ReLU()])
+            self.net.extend([nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, stride=1, padding=1), nn.LeakyReLU()])
 
         self.fc = nn.Linear(hidden_dim * govars.SIZE * govars.SIZE, govars.ACTION_SPACE)
         self.drop_out = nn.Dropout()
@@ -39,9 +39,9 @@ class ResNet(nn.Module):
         
         self.net = nn.ModuleList([
             nn.Conv2d(govars.FEAT_CHNLS, hidden_dim, kernel_size=7, stride=1, padding=3), 
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Conv2d(hidden_dim, hidden_dim, kernel_size=5, stride=1, padding=2), 
-            nn.ReLU()
+            nn.LeakyReLU()
             ])
 
         for _ in range(num_layers - 1):
@@ -49,7 +49,7 @@ class ResNet(nn.Module):
 
         self.fc = nn.Sequential(
             nn.Linear(hidden_dim * govars.PADDED_SIZE * govars.PADDED_SIZE, 1024),
-            nn.ReLU(),
+            nn.LeakyReLU(),
             nn.Linear(1024, 3)
         )
         self.drop_out = nn.Dropout(p=0.2)
@@ -70,13 +70,13 @@ class ResBlock(nn.Module):
 
         self.cnn = nn.Sequential(
             nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding),
-            nn.ReLU(),
+            nn.LeakyReLU(),
 
             nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding),
-            nn.ReLU(),
+            nn.LeakyReLU(),
         )
 
-        self.relu = nn.ReLU()
+        self.relu = nn.LeakyReLU()
     
     def forward(self, x):
         identity = x
