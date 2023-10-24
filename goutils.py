@@ -1,5 +1,6 @@
 import govars
 from GoEnv import Go
+import gogame
 
 import random
 import numpy as np
@@ -139,3 +140,16 @@ def test_time_predict(board, net, device):
 def mask_moves(pred):
     pred[govars.PASS] = float('-inf') # mask the pass move
     return pred
+
+def crop_board(board):
+    return board
+
+
+def strong_augment(board):
+    assert np.shape(board) == (govars.FEAT_CHNLS, govars.SIZE, govars.SIZE)
+    
+    board = crop_board(board)
+
+    board = gogame.random_symmetry(board)
+
+    return board

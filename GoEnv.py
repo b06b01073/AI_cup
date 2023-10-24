@@ -12,6 +12,7 @@ class Go:
         self.capture_size = np.zeros((govars.CAPTURE_PLANES, govars.SIZE, govars.SIZE))
         self.self_atari_size = np.zeros((govars.SELF_ATARI_PLANES, govars.SIZE, govars.SIZE)) 
         self.liberty = np.zeros((govars.LIBERTY_PLANES, govars.SIZE, govars.SIZE))
+        self.last_move = None
     
 
     def build_recent_moves(self, action1d):
@@ -21,6 +22,7 @@ class Go:
             last_move[action2d] = 1
         self.recent_moves[:-1] = self.recent_moves[1:] 
         self.recent_moves[-1] = last_move
+        self.last_move = last_move
 
 
     def build_capture_size(self):

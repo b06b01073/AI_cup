@@ -107,7 +107,104 @@ class StyleDataset(Dataset):
             return goutils.pad_board(sym_game_features), label_onehot
         else:
             return goutils.pad_board(game_features), label_onehot
+
+
+class GoMatchDataset(Dataset):
+    def __init__(self, labels, games, weak_augment=None, strong_augment=None, unlabeled_size=None, train=False):
+        self.labels = labels
+        self.games = games 
+        self.weak_augment = weak_augment
+        self.strong_augment = strong_augment
+        self.unlabeled_size = unlabeled_size
+        self.train = train
+    
+
+    def __len__(self):
+        return len(self.games)
+    
+
+    def __getitem__(self, idx):
+        game = self.games[idx].split(',')
+        go_env = Go()
+        game_len = len(game)
+
+        unlabeled_indices = np.random.choice(game_len, size=self.unlabeled_size, replace=True)
+        unlabeled_count = np.bincount(unlabeled_indices)
+
+        unlabeled_states = []
+
+
+        last_move = 'W'
+        for idx, move in enumerate(game):
+
+            # handle the PASS scenario
+            if move[0] == last_move:
+                # there's an in-between pass move
+                go_move, _ = goutils.move_encode(govars.PASS)
+                go_env.make_move(go_move)
+                
+
+            go_move, _ = goutils.move_encode(move) # go_move is for the go env, moves[move_id] is the one hot vector
+
+            go_env.make_move(go_move)
+            last_move = move[0]
+
             
+            # push unlabeled data into unlabeled_states
+            if idx in unlabeled_indices:
+                for _ in range(unlabeled_count[idx]):
+                    unlabeled_states.append(go_env.game_features().astype(np.float32))
+        
+        labeled_state = go_env.game_features().astype(np.float32)
+
+
+        label_onehot = np.zeros((3, ), dtype=np.float32) # get the label
+        label_onehot[self.labels[idx] - 1] = 1
+        
+        # test set
+        if not self.train:
+            return goutils.pad_board(labeled_state), label_onehot
+        
+        # train set
+        labeled_state = goutils.pad_board(self.weak_augment(labeled_state))
+
+        weak_augmented_states = []
+        strong_augmented_states = []
+        for unlabeled_state in unlabeled_states:
+            weak_augmented_state = goutils.pad_board(self.weak_augment(unlabeled_state))
+            strong_augmented_state = goutils.pad_board(self.strong_augment(unlabeled_state))
+
+            weak_augmented_states.append(weak_augmented_state)
+            strong_augmented_states.append(strong_augmented_state)
+        
+
+        return labeled_state, label_onehot, np.array(weak_augmented_states), np.array(strong_augmented_states)
+
+
+
+def go_match_loader(path, split, unlabeled_size, batch_size):
+    labels, games = GoParser.style_parser(path)
+    train_len = int(len(games) * split)
+    train_labels, train_games = labels[:train_len], games[:train_len]
+    test_labels, test_games = labels[train_len:], games[train_len:]
+
+    train_dataset = GoMatchDataset(
+        train_labels,
+        train_games, 
+        weak_augment=gogame.random_symmetry,
+        strong_augment=goutils.strong_augment,
+        unlabeled_size=unlabeled_size, 
+        train=True
+    )
+
+    test_dataset = GoMatchDataset(
+        test_labels, 
+        test_games, 
+        train=False
+    )
+
+    return DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=12), DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=12)
+
 
 def get_loader(path, split, bootstrap=False):
     games = GoParser.file_parser(path)
@@ -133,16 +230,6 @@ def style_loader(path, split):
     test_dataset = StyleDataset(test_labels, test_games, augment=False)
 
     return DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=12), DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=12)
-
-
-def bootstrap(games, num_samples):
-    # note that the games "need to be split already"
-    bootstrap_games = []
-    for i in range(num_samples):
-        game_index = np.random.randint(0, len(games))
-        bootstrap_games.append(games[game_index])
-
-    return bootstrap_games
 
 
 if __name__ == '__main__':
