@@ -8,12 +8,16 @@ from tqdm import tqdm
 import torch
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def predict(net, game_feature, file_name, visualize):
+def predict(net, game_feature, file_name, visualize, tta):
     last_position = goutils.pad_board(game_feature)
     last_position = torch.from_numpy(last_position).unsqueeze(dim=0).to(device)
 
-    pred = net(last_position).squeeze()
-    pred = torch.softmax(pred, dim=0)
+    if tta:
+        pred = goutils.test_time_style(last_position, net, device)
+    else:
+        pred = net(last_position).squeeze()
+        pred = torch.softmax(pred, dim=0)
+        
     style = torch.argmax(pred).item() + 1
 
     if visualize:
@@ -30,6 +34,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', '-m',type=str)
     parser.add_argument('--test_file', '-t', type=str)
     parser.add_argument('--visualize', '-v', action='store_true')
+    parser.add_argument('--tta', action='store_false')
 
     args = parser.parse_args()
     net = torch.load(args.model_path).to(device)
@@ -58,7 +63,7 @@ if __name__ == '__main__':
             go_env.make_move(go_move)
             last_move = move[0]
 
-        predict(net, go_env.game_features(), file_name, args.visualize)
+        predict(net, go_env.game_features(), file_name, args.visualize, args.tta)
         
         
 
