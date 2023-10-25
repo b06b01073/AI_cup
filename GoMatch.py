@@ -12,22 +12,22 @@ class GoMatch:
         self.net = self.init_model(model).to(device)
         self.device = device
         self.loss_fn_avg = nn.CrossEntropyLoss()
-        self.loss_fn_sum = nn.CrossEntropyLoss(reduction='sum')
+        self.loss_fn_none = nn.CrossEntropyLoss(reduction='none')
 
     def init_model(self, model):
-        if model == 'resnet':
-            net = models.resnet18(weights=None)
+        if model == 'resnet50':
+            net = models.resnet50(weights=None)
+        elif model == 'resnet101':
+            net = models.resnet101(weights=None)
 
-            # adjust the input and output layer
-            net.conv1 = torch.nn.Conv2d(govars.FEAT_CHNLS, 64, kernel_size=7, stride=1, padding=3)
-            in_features = net.fc.in_features
-            net.fc = torch.nn.Linear(in_features, govars.STYLE_CAT)
-            return net
+        net.conv1 = torch.nn.Conv2d(govars.FEAT_CHNLS, 64, kernel_size=7, stride=1, padding=3)
+        in_features = net.fc.in_features
+        net.fc = torch.nn.Linear(in_features, govars.STYLE_CAT)
 
+        return net
 
     def save_model(self, save_dir, file_name):
-        if not os.path.exists(save_dir):
-            torch.save(self.net, os.path.join(save_dir, file_name))
+        torch.save(self.net, os.path.join(save_dir, file_name))
 
 
     def fit(self, train_set, test_set, optimizer, scheduler, epoch, tau, unsupervised_coef, save_dir, file_name):
@@ -64,16 +64,16 @@ class GoMatch:
                 strong_augmented_states = rearrange(strong_augmented_states, 'b u c h w -> (b u) c h w')
 
 
-                unlabeled_size = weak_augmented_states.shape[0]
                 weak_preds = F.softmax(self.net(weak_augmented_states), dim=1)
                 strong_preds = self.net(strong_augmented_states)
                 confidence, _ = torch.max(weak_preds, dim=1) 
-                confidence_mask = torch.nonzero((confidence > tau).type(torch.int32)).squeeze()
+                confidence_mask = (confidence > tau).float().squeeze()
 
 
-                pseudo_labels = F.one_hot(torch.argmax(weak_preds, dim=1)[confidence_mask], govars.STYLE_CAT).type(torch.float32)
+                pseudo_labels = F.one_hot(torch.argmax(weak_preds, dim=1), govars.STYLE_CAT).type(torch.float32)
 
-                unsupervised_loss = self.loss_fn_sum(strong_preds[confidence_mask], pseudo_labels.detach()) / unlabeled_size
+
+                unsupervised_loss = (confidence_mask * self.loss_fn_none(strong_preds, pseudo_labels.detach())).mean()
 
                 # update model
                 optimizer.zero_grad()

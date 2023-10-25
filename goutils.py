@@ -181,10 +181,31 @@ def crop_board(board):
     return board
 
 
-def strong_augment(board):
+def random_moves(board):
+    random_moves = np.random.randint(low=0, high=govars.MAX_RANDOM_MOVES + 1)
+
+    turn = gogame.turn(board)
+    for r in range(random_moves):
+        random_move1d = gogame.random_action(board)
+        if random_move1d == govars.PASS:
+            continue
+        
+        random_move2d =  random_move1d // govars.SIZE, random_move1d % govars.SIZE
+        
+        board[turn, random_move2d[0], random_move2d[1]] = 1
+        board[govars.INVD_CHNL, random_move2d[0], random_move2d[1]] = 1
+        turn = (turn + 1) % 2
+
+    return board
+
+def strong_augment(board, crop, rand_move):
     board = np.copy(board)
 
-    board = crop_board(board)
+    if crop:
+        board = crop_board(board)
+    if rand_move:
+        board = random_moves(board)
+        
     board = gogame.random_symmetry(board)
 
     return board

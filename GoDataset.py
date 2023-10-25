@@ -110,13 +110,17 @@ class StyleDataset(Dataset):
 
 
 class GoMatchDataset(Dataset):
-    def __init__(self, labels, games, weak_augment=None, strong_augment=None, unlabeled_size=None, train=False):
+    def __init__(self, labels, games, crop=True, rand_move=True, weak_augment=None, strong_augment=None, unlabeled_size=None, train=False):
         self.labels = labels
         self.games = games 
         self.weak_augment = weak_augment
         self.strong_augment = strong_augment
         self.unlabeled_size = unlabeled_size
         self.train = train
+        self.crop = crop
+        self.rand_move = rand_move
+
+        print(f'Crop board: {self.crop}, Rand move: {self.rand_move}')
     
 
     def __len__(self):
@@ -178,7 +182,7 @@ class GoMatchDataset(Dataset):
         strong_augmented_states = []
         for unlabeled_state in unlabeled_states:
             weak_augmented_state = goutils.pad_board(self.weak_augment(unlabeled_state))
-            strong_augmented_state = goutils.pad_board(self.strong_augment(unlabeled_state))
+            strong_augmented_state = goutils.pad_board(self.strong_augment(unlabeled_state, self.crop, self.rand_move))
 
             weak_augmented_states.append(weak_augmented_state)
             strong_augmented_states.append(strong_augmented_state)
@@ -188,17 +192,19 @@ class GoMatchDataset(Dataset):
 
 
 
-def go_match_loader(path, split, unlabeled_size, batch_size):
+def go_match_loader(path, split, unlabeled_size, batch_size, crop, rand_move):
     labels, games = GoParser.style_parser(path)
-    train_len = int(len(games) * split)
-    train_labels, train_games = labels[:train_len], games[:train_len]
-    test_labels, test_games = labels[train_len:], games[train_len:]
+    test_len = int(len(games) * split)
+    train_labels, train_games = labels[test_len:], games[test_len:]
+    test_labels, test_games = labels[:test_len], games[:test_len]
 
     train_dataset = GoMatchDataset(
         train_labels,
         train_games, 
         weak_augment=gogame.random_symmetry,
         strong_augment=goutils.strong_augment,
+        
+        
         unlabeled_size=unlabeled_size, 
         train=True
     )
