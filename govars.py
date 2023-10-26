@@ -30,5 +30,5 @@ STYLE_CAT = 3
 INHIBIT_CROP_SIZE = 7 # the crop in strong_augment cannot crop the region center at the last move with size (5, 5)
 
 CROP_SIZE = 5 # crop a region with size (h, w), where h, w \in [1, 5]
-MAX_RANDOM_MOVES = 20
-INHIBIT_MOVE_SIZE=7
+RANDOM_MOVES_RATIO = 0.2
+INHIBIT_MOVE_SIZE=9

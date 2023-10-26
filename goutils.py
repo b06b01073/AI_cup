@@ -169,7 +169,7 @@ def mask_moves(pred):
     pred[govars.PASS] = float('-inf') # mask the pass move
     return pred
 
-def are_rectangles_overlapping(rectangle1, rectangle2):
+def is_overlapped(rectangle1, rectangle2):
     x1, y1, width1, height1 = rectangle1
     x2, y2, width2, height2 = rectangle2
 
@@ -202,23 +202,41 @@ def crop_board(board):
             # out of bound
             continue 
 
-        if not are_rectangles_overlapping((inhibit_top_left_x, inhibit_top_left_y, inhibit_size, inhibit_size), (crop_top_left_x, crop_top_left_y, cropped_w, cropped_h)):
+        if not is_overlapped((inhibit_top_left_x, inhibit_top_left_y, inhibit_size, inhibit_size), (crop_top_left_x, crop_top_left_y, cropped_w, cropped_h)):
             board = zero_board(board, crop_top_left_y, crop_top_left_x, cropped_h, cropped_w)
             break
 
     return board
 
 
+def is_too_close(move2d, board):
+    last_move_row, last_move_col = np.where(board[-1] == 1)
+    inhibit_size = govars.INHIBIT_MOVE_SIZE
+    inhibit_top_left_y, inhibit_top_left_x = last_move_row - inhibit_size // 2, last_move_col - inhibit_size // 2 
+    inhibit_bottom_right_y, inhibit_bottom_right_x = last_move_row + inhibit_size // 2, last_move_col + inhibit_size // 2
+
+    y, x = move2d
+
+    if y < inhibit_top_left_y or x < inhibit_top_left_x or y > inhibit_bottom_right_y or x > inhibit_bottom_right_x:
+        # outside the box
+        return False
+
+    return True
+
 def random_moves(board):
-    random_moves = np.random.randint(low=0, high=govars.MAX_RANDOM_MOVES + 1)
+    total_moves = np.count_nonzero(board[govars.BLACK]) + np.count_nonzero(board[govars.WHITE])
+
+    max_random_moves = int(total_moves * govars.RANDOM_MOVES_RATIO) + 1
+    random_moves = np.random.randint(low=1, high=max_random_moves + 1)
+
 
     turn = gogame.turn(board)
     for r in range(random_moves):
         random_move1d = gogame.random_action(board)
-        if random_move1d == govars.PASS:
-            continue
-        
         random_move2d =  random_move1d // govars.SIZE, random_move1d % govars.SIZE
+        if random_move1d == govars.PASS or is_too_close(random_move2d, board):
+            continue
+
         
         board[turn, random_move2d[0], random_move2d[1]] = 1
         board[govars.INVD_CHNL, random_move2d[0], random_move2d[1]] = 1
