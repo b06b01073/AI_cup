@@ -52,7 +52,7 @@ if __name__ == '__main__':
 
     scheduler = CosineAnnealingWarmRestarts(
         optimizer=optimizer,
-        T_0=25,
+        T_0=100,
     )
 
 
