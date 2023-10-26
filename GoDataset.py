@@ -6,6 +6,7 @@ import goutils
 import sys
 import numpy as np
 import gogame
+from sklearn.model_selection import KFold
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -195,17 +196,26 @@ class GoMatchDataset(Dataset):
 
 def go_match_loader(path, split, unlabeled_size, batch_size, crop, rand_move):
     labels, games = GoParser.style_parser(path)
-    test_len = int(len(games) * split)
-    train_labels, train_games = labels[test_len:], games[test_len:]
-    test_labels, test_games = labels[:test_len], games[:test_len]
+    indices = np.arange(len(games))
+    np.random.shuffle(indices) # inplace op
+    
+    train_len = int(len(games) * split)
+    train_indices = indices[:train_len]
+    test_indices = indices[train_len:]
+
+    assert np.intersect1d(train_indices, test_indices).size == 0
+
+    train_labels, train_games = np.array(labels)[train_indices], np.array(games)[train_indices]
+    test_labels, test_games = np.array(labels)[test_indices], np.array(games)[test_indices]
+
 
     train_dataset = GoMatchDataset(
         train_labels,
         train_games, 
         weak_augment=gogame.random_symmetry,
         strong_augment=goutils.strong_augment,
-        
-        
+        crop=crop,
+        rand_move=rand_move,
         unlabeled_size=unlabeled_size, 
         train=True
     )
@@ -216,7 +226,7 @@ def go_match_loader(path, split, unlabeled_size, batch_size, crop, rand_move):
         train=False
     )
 
-    return DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=12), DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=12)
+    return DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=6), DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=6)
 
 
 def get_loader(path, split, bootstrap=False):

@@ -13,8 +13,8 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=64)
     parser.add_argument('--unlabeled_size', type=int, default=12)
     parser.add_argument('--path', '-p', type=str, default='./dataset/training/play_style_train.csv')
-    parser.add_argument('--split', '-s', type=float, default=0.1)
-    parser.add_argument('--lr', type=float, default=3e-2)
+    parser.add_argument('--split', '-s', type=float, default=0.9)
+    parser.add_argument('--lr', type=float, default=1.5e-2)
     parser.add_argument('--epoch', type=int, default=300)
     parser.add_argument('--tau', type=float, default=0.95)
     parser.add_argument('--momentum', type=float, default=0.9)
@@ -29,7 +29,7 @@ if __name__ == '__main__':
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(f'Training on {device}')
-    file_name = f'momentum_{args.momentum}_crop_{args.crop}_rand_move_{args.rand_move}_{args.model}.pth'
+    file_name = f'momentum_{args.momentum}_crop_{args.crop}_rand_move_{args.rand_move}_coef_{args.unsupervised_coef}_{args.model}.pth'
     print(f'file name: {file_name}')
 
     train_set, test_set = GoDataset.go_match_loader(
@@ -38,7 +38,7 @@ if __name__ == '__main__':
         args.unlabeled_size,
         args.batch_size,
         args.crop,
-        args.rand_move
+        args.rand_move,
     )
     go_match = GoMatch(args.model, device)
     
