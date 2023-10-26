@@ -58,7 +58,7 @@ if __name__ == '__main__':
         )
 
 
-    optimizer = optim.Adam(net.parameters(), lr=args.eta_start) 
+    optimizer = optim.Adam(net.parameters(), lr=args.eta_start, weight_decay=args.weight_decay) 
     loss_func = nn.CrossEntropyLoss()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     trainer = Trainer(
