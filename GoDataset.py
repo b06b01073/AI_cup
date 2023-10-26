@@ -135,8 +135,10 @@ class GoMatchDataset(Dataset):
         game_len = len(game)
 
         
+        rand_idx = [i for i in range(game_len) if i >= 4]
+
         if self.train:
-            unlabeled_indices = np.random.choice(game_len, size=self.unlabeled_size, replace=True)
+            unlabeled_indices = np.random.choice(rand_idx, size=self.unlabeled_size, replace=True)
 
             unlabeled_count = np.bincount(unlabeled_indices)
 
