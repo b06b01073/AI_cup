@@ -35,11 +35,12 @@ class GoMatch:
         for i in range(epoch):
             print(f'Epoch [{i + 1}/{epoch}]')
 
-            train_acc = self.train(train_set, optimizer, tau, unsupervised_coef)
+            train_acc, supervised_loss, unsupervised_loss, mask_rate = self.train(train_set, optimizer, tau, unsupervised_coef)
             test_acc = self.test(test_set)
             scheduler.step()
 
             print(f'train acc: {train_acc}, test acc: {test_acc}, lr: {scheduler.get_last_lr()}')
+            print(f'supervised_loss: {supervised_loss}, unsupervised_loss: {unsupervised_loss}, mask_rate: {mask_rate}')
             if test_acc > best_acc:
                 best_acc = test_acc
                 print('saving model...')
@@ -49,6 +50,11 @@ class GoMatch:
         self.net.train()
         correct = 0
         total = 0
+        masked_data = 0
+        total_unlabeled = 0
+        total_unsupervised_loss = 0
+        total_supervised_loss = 0
+
         with tqdm(train_set, leave=False, dynamic_ncols=True) as pbar:
             for labeled_states, label_onehots, weak_augmented_states, strong_augmented_states in pbar:
                 labeled_states, label_onehots, weak_augmented_states, strong_augmented_states = labeled_states.to(self.device), label_onehots.to(self.device), weak_augmented_states.to(self.device), strong_augmented_states.to(self.device)
@@ -64,7 +70,7 @@ class GoMatch:
                 strong_augmented_states = rearrange(strong_augmented_states, 'b u c h w -> (b u) c h w')
 
 
-                weak_preds = F.softmax(self.net(weak_augmented_states), dim=1)
+                weak_preds = F.softmax(self.net(weak_augmented_states), dim=1).detach()
                 strong_preds = self.net(strong_augmented_states)
                 confidence, _ = torch.max(weak_preds, dim=1) 
                 confidence_mask = (confidence > tau).float().squeeze()
@@ -73,7 +79,7 @@ class GoMatch:
                 pseudo_labels = F.one_hot(torch.argmax(weak_preds, dim=1), govars.STYLE_CAT).type(torch.float32)
 
 
-                unsupervised_loss = (confidence_mask * self.loss_fn_none(strong_preds, pseudo_labels.detach())).mean()
+                unsupervised_loss = (confidence_mask * self.loss_fn_none(strong_preds, pseudo_labels)).mean()
 
                 # update model
                 optimizer.zero_grad()
@@ -82,14 +88,23 @@ class GoMatch:
                 optimizer.step()
         
                 with torch.no_grad():
+                    # acc
                     predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
                     target_index = torch.argmax(label_onehots, dim=1)
                     correct += torch.sum(predicted_classes == target_index).item()
                     total += label_onehots.size(0)
 
+                    # loss
+                    total_unsupervised_loss += unsupervised_loss
+                    total_supervised_loss += supervised_loss
+
+                    # mask
+                    masked_data += torch.count_nonzero(confidence_mask)
+                    total_unlabeled += len(confidence_mask)
+
                 pbar.set_description(f'Train Accuracy: {100 * correct / total:.2f}%')
 
-        return 100 * correct / total
+        return 100 * correct / total, total_supervised_loss.item(), total_unsupervised_loss.item(), (masked_data / total_unlabeled).item()
 
 
 
