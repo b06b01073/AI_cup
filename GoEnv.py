@@ -105,6 +105,20 @@ class Go:
     def render(self):
         return print(gogame.str(self.game_state))
     
+    def style_features(self):
+        style_feature = np.stack((
+            self.game_state[govars.BLACK],
+            self.game_state[govars.WHITE],
+            self.game_state[govars.TURN_CHNL],
+            self.empty_plane,
+            self.one_plane,
+            self.recent_moves[-2],
+            self.recent_moves[-1]
+        ), axis=0)
+
+        return np.copy(style_feature).astype(np.float32)
+
+
     def game_features(self):
         '''Do feature extraction here
         '''

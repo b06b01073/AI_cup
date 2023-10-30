@@ -5,7 +5,20 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 import torch
 
-
+def get_optim(optim_type, net, lr, momentum, nesterov, weight_decay):
+    if optim_type == 'sgd':
+        return optim.SGD(
+            net.parameters(), 
+            lr=lr,
+            momentum=momentum,
+            nesterov=nesterov,
+            weight_decay=weight_decay
+        )
+    elif optim_type == 'adam':
+        return optim.Adam(
+            net.parameters(),
+            lr=lr
+        )
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -14,16 +27,20 @@ if __name__ == '__main__':
     parser.add_argument('--unlabeled_size', type=int, default=12)
     parser.add_argument('--path', '-p', type=str, default='./dataset/training/play_style_train.csv')
     parser.add_argument('--split', '-s', type=float, default=0.9)
-    parser.add_argument('--lr', type=float, default=1.5e-2)
+    parser.add_argument('--lr', type=float, default=2e-2)
     parser.add_argument('--epoch', type=int, default=300)
     parser.add_argument('--tau', type=float, default=0.95)
     parser.add_argument('--momentum', type=float, default=0.9)
     parser.add_argument('--nesterov', action='store_false')
     parser.add_argument('--unsupervised_coef', type=float, default=1)
-    parser.add_argument('--weight_decay', type=float, default=5e-4)
+    parser.add_argument('--weight_decay', type=float, default=1e-4)
     parser.add_argument('--save_dir', type=str, default='model_params')
     parser.add_argument('--crop', action='store_true')
     parser.add_argument('--rand_move', action='store_true')
+    parser.add_argument('--label_smoothing', type=float, default=0)
+    parser.add_argument('--dropout', type=float, default=0)
+    parser.add_argument('--optim_type', type=str, default='sgd')
+    parser.add_argument('--pretrained', type=str)
 
     args = parser.parse_args()
 
@@ -40,10 +57,17 @@ if __name__ == '__main__':
         args.crop,
         args.rand_move,
     )
-    go_match = GoMatch(args.model, device)
+    go_match = GoMatch(
+        args.model,
+        args.dropout, # to initialize resnet 
+        args.label_smoothing, # to initialize loss function
+        device,
+        args.pretrained,
+    )
     
-    optimizer = optim.SGD(
-        go_match.net.parameters(), 
+    optimizer = get_optim(
+        optim_type=args.optim_type,
+        net=go_match.net,
         lr=args.lr,
         momentum=args.momentum,
         nesterov=args.nesterov,
@@ -52,7 +76,7 @@ if __name__ == '__main__':
 
     scheduler = CosineAnnealingWarmRestarts(
         optimizer=optimizer,
-        T_0=100,
+        T_0=args.epoch,
     )
 
 

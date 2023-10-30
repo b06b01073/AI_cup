@@ -226,7 +226,7 @@ def is_too_close(move2d, board):
 def random_moves(board):
     total_moves = np.count_nonzero(board[govars.BLACK]) + np.count_nonzero(board[govars.WHITE])
 
-    max_random_moves = int(total_moves * govars.RANDOM_MOVES_RATIO) + 1
+    max_random_moves = 10
     random_moves = np.random.randint(low=1, high=max_random_moves + 1)
 
 
@@ -239,7 +239,6 @@ def random_moves(board):
 
         
         board[turn, random_move2d[0], random_move2d[1]] = 1
-        board[govars.INVD_CHNL, random_move2d[0], random_move2d[1]] = 1
         turn = (turn + 1) % 2
 
     return board

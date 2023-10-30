@@ -6,7 +6,6 @@ import goutils
 import sys
 import numpy as np
 import gogame
-from sklearn.model_selection import KFold
 
 np.set_printoptions(threshold=sys.maxsize)
 
@@ -37,12 +36,12 @@ class GoDataset(Dataset):
                 game_features = go_env.game_features()
 
                 if self.augment:
-                    sym_game_features, sym_move_onehot = gogame.random_symmetry(game_features, move_onehot)
+                    sym_game_features, sym_move = gogame.random_symmetry(game_features, move_onehot)
                     game_states.append(goutils.pad_board(sym_game_features))
-                    moves.append(sym_move_onehot)
+                    moves.append(sym_move)
                 else:
                     game_states.append(goutils.pad_board(game_features))
-                    moves.append(move_onehot)
+                    moves.append(go_move)
 
                 go_env.make_move(go_move)
                 
@@ -52,18 +51,18 @@ class GoDataset(Dataset):
             # got to make sure the state is pushed to the list before state update
             game_features = go_env.game_features()
             if self.augment:
-                sym_game_features, sym_move_onehot = gogame.random_symmetry(game_features, move_onehot)
+                sym_game_features, sym_move = gogame.random_symmetry(game_features, move_onehot)
                 game_states.append(goutils.pad_board(sym_game_features))
-                moves.append(sym_move_onehot)
+                moves.append(sym_move)
             else:
                 game_states.append(goutils.pad_board(game_features))
-                moves.append(move_onehot)
+                moves.append(go_move)
 
             go_env.make_move(go_move)
 
             last_move = move[0]
     
-        return np.array(game_states, dtype=np.float32), np.array(moves, dtype=np.float32)
+        return np.array(game_states, dtype=np.float32), np.array(moves, dtype=np.int_)
 
 
 class StyleDataset(Dataset):
@@ -165,14 +164,11 @@ class GoMatchDataset(Dataset):
             if self.train:
                 if idx in unlabeled_indices:
                     for _ in range(unlabeled_count[idx]):
-                        unlabeled_states.append(go_env.game_features().astype(np.float32))
+                        unlabeled_states.append(go_env.game_features())
         
-        labeled_state = go_env.game_features().astype(np.float32)
+        labeled_state = go_env.game_features()
 
 
-        label_onehot = np.zeros((3, ), dtype=np.float32) # get the label
-        label_onehot[label] = 1
-        
         # test set
         if not self.train:
             return goutils.pad_board(labeled_state), label
@@ -190,12 +186,13 @@ class GoMatchDataset(Dataset):
             strong_augmented_states.append(strong_augmented_state)
         
 
-        return labeled_state, label_onehot, np.array(weak_augmented_states), np.array(strong_augmented_states)
+        return labeled_state, label, np.array(weak_augmented_states), np.array(strong_augmented_states)
 
 
 
 def go_match_loader(path, split, unlabeled_size, batch_size, crop, rand_move):
     labels, games = GoParser.style_parser(path)
+
     indices = np.arange(len(games))
     np.random.shuffle(indices) # inplace op
     
@@ -203,10 +200,14 @@ def go_match_loader(path, split, unlabeled_size, batch_size, crop, rand_move):
     train_indices = indices[:train_len]
     test_indices = indices[train_len:]
 
-    assert np.intersect1d(train_indices, test_indices).size == 0
+    assert np.intersect1d(train_indices, test_indices).size == 0 # just to make sure :)
 
     train_labels, train_games = np.array(labels)[train_indices], np.array(games)[train_indices]
     test_labels, test_games = np.array(labels)[test_indices], np.array(games)[test_indices]
+
+    # label_dist = np.bincount(labels)
+    # train_label_dist = np.bincount(train_labels)
+    # print(f'label dist: {label_dist}, train_label_dist: {train_label_dist}')
 
 
     train_dataset = GoMatchDataset(
@@ -252,7 +253,7 @@ def style_loader(path, split):
     train_dataset = StyleDataset(train_labels, train_games, augment=True)
     test_dataset = StyleDataset(test_labels, test_games, augment=False)
 
-    return DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=12), DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=12)
+    return DataLoader(train_dataset, batch_size=256, shuffle=True, num_workers=6), DataLoader(test_dataset, batch_size=256, shuffle=False, num_workers=6)
 
 
 if __name__ == '__main__':

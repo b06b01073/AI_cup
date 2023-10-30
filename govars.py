@@ -24,6 +24,7 @@ SELF_ATARI_PLANES = 4
 LIBERTY_PLANES = 8
 
 FEAT_CHNLS = ORI_FEAT_CHANNEL + LAST_MOVE_PLANES # (black, white, turn, invalid, recent moves * 4, empty, ones)
+STYLE_CHNLS=7
 
 STYLE_CAT = 3
 

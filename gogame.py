@@ -1,6 +1,7 @@
 import numpy as np
 from scipy import ndimage
 from sklearn import preprocessing
+import torch
 
 import state_utils, govars
 
@@ -375,7 +376,7 @@ def random_symmetry(board, move=None):
 
     if move is not None:
         move[:govars.ACTION_SPACE - 1] = non_pass_moves.flatten()
-        return board, move
+        return board, np.argmax(move)
     else:
         return board
 

@@ -73,7 +73,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--path', type=str, default='./dataset/training/play_style_train.csv')
     parser.add_argument('--model', type=str, default='ViT')
-    parser.add_argument('--eta_start', type=float, default=3e-2)
+    parser.add_argument('--eta_start', type=float, default=1e-4)
 
     parser.add_argument('--epoch', '-e', type=int, default=200)
     parser.add_argument('--patch_size', '-p', default=7, type=int)
@@ -82,8 +82,8 @@ if __name__ == '__main__':
     parser.add_argument('--num_class', '-c', default=3, type=int)
     parser.add_argument('--num_head', '-nh', default=8, type=int)
     parser.add_argument('--drop', default=0, type=float)
-    parser.add_argument('--weight_decay', '--wd', default=5e-4, type=float)
-    parser.add_argument('--label_smoothing', '--ls', default=0, type=float)
+    parser.add_argument('--weight_decay', '--wd', default=1e-4, type=float)
+    parser.add_argument('--label_smoothing', '--ls', default=0.05, type=float)
     parser.add_argument('--pretrained', '--pt', type=str)
     parser.add_argument('--split', '-s', type=float, default=0.9)
     parser.add_argument('--save_dir', '--sd', type=str, default='./model_params')
@@ -105,31 +105,21 @@ if __name__ == '__main__':
     if args.pretrained is not None:
         print(f'loading pretrained model from {args.pretrained}')
         net = torch.load(args.pretrained)
+        net.heads = nn.Linear(net.hidden_dim, args.num_class)
     if args.resnet:
         print('Training ResNet')
         # net = ResNet(num_layers=20)
-        net = models.resnet18(weights=None)
-        new_conv1 = torch.nn.Conv2d(10, 64, kernel_size=7, stride=1, padding=3)
+        net = models.resnet50(weights=None)
+        new_conv1 = torch.nn.Conv2d(govars.STYLE_CHNLS, 64, kernel_size=7, stride=1, padding=3)
         net.conv1 = new_conv1
         in_features = net.fc.in_features
         net.fc = torch.nn.Linear(in_features, args.num_class)
-    else:
-        print('Training ViT')
-        net = MViT(
-            img_shape=(govars.FEAT_CHNLS, govars.PADDED_SIZE, govars.PADDED_SIZE),
-            patch_size=args.patch_size,
-            num_class=args.num_class,
-            num_head=args.num_head,
-            encoder_layers=args.encoder_layer,
-            embedded_dim=args.embedded_dim,
-            drop=args.drop
-        )
 
     net = net.to(device)
 
     loss_func = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
-    optimizer = optim.SGD(net.parameters(), lr=args.eta_start, momentum=args.momentum, nesterov=args.nesterov, weight_decay=args.weight_decay) 
-    scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=20)
+    optimizer = optim.Adam(net.parameters(), lr=args.eta_start, weight_decay=args.weight_decay) 
+    scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=100)
     best_acc = 0
 
     # optimizer = optim.Adam(net.parameters(), lr=args.eta_start)

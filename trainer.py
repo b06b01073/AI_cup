@@ -73,13 +73,13 @@ class Trainer:
             loss.backward()
             optimizer.step()
 
-            predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
-            target_index = torch.argmax(target, dim=1)
-            # Compare the predicted classes to the target labels
-            correct_preds += torch.sum(predicted_classes == target_index).item()
-            top5_hit += self.batch_topk_hit(preds, target_index)
+            with torch.no_grad():
+                predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
+                # Compare the predicted classes to the target labels
+                correct_preds += torch.sum(predicted_classes == target).item()
+                top5_hit += self.batch_topk_hit(preds, target)
 
-            total_preds += target.shape[0]
+                total_preds += target.shape[0]
 
             if iter % acc_interval == 0 and iter != 0:
                 print(f'Accumulated training accuracy [{100 * iter / len(dataset):.2f}%]: top1: {correct_preds / total_preds:.4f}, top5: {top5_hit / total_preds:.4f}')
@@ -104,10 +104,9 @@ class Trainer:
                 preds = net(states) 
 
                 predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
-                target_index = torch.argmax(target, dim=1)
                 # Compare the predicted classes to the target labels
-                correct_preds += torch.sum(predicted_classes == target_index).item()
-                top5_hit += self.batch_topk_hit(preds, target_index)
+                correct_preds += torch.sum(predicted_classes == target).item()
+                top5_hit += self.batch_topk_hit(preds, target)
 
                 total_preds += target.shape[0]
 
