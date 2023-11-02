@@ -68,9 +68,6 @@ class GoMatch:
             print(f'Epoch [{i + 1}/{epoch}]')
 
             train_acc, supervised_loss, unsupervised_loss, mask_rate = self.train(train_set, optimizer, tau, unsupervised_coef)
-
-            self.ema_net.update(self.net) # update ema network
-
             test_acc = self.test(test_set)
             scheduler.step()
 
@@ -122,6 +119,8 @@ class GoMatch:
                 loss.backward()
                 nn.utils.clip_grad_norm_(self.net.parameters(), 1)
                 optimizer.step()
+
+                self.ema_net.update(self.net) # update ema network
         
                 with torch.no_grad():
                     # acc
