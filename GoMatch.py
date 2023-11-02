@@ -7,10 +7,14 @@ from einops import rearrange
 from tqdm import tqdm
 import os
 from torchvision.models.vision_transformer import VisionTransformer as ViT
+import copy
 
 class GoMatch:
-    def __init__(self, model, dropout, label_smoothing, device, pretrained):
+    def __init__(self, model, dropout, label_smoothing, decay, device, pretrained):
         self.net = self.init_model(model, dropout, pretrained).to(device)
+        self.ema_net = EMA(decay=decay, device=device)
+        self.ema_net.copy(self.net)
+
         self.device = device
         self.loss_fn_avg = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
         self.loss_fn_none = nn.CrossEntropyLoss(reduction='none', label_smoothing=label_smoothing)
@@ -27,7 +31,10 @@ class GoMatch:
         if pretrained is not None:
             print(f'Using pretrained model: {pretrained}')
             return torch.load(pretrained)
-
+            
+        if model == 'resnet18':
+            net = models.resnet18(weights=None, dropout=dropout)
+            net = self.resnet_post_process(net)
         if model == 'resnet50':
             net = models.resnet50(weights=None, dropout=dropout)
             net = self.resnet_post_process(net)
@@ -61,6 +68,9 @@ class GoMatch:
             print(f'Epoch [{i + 1}/{epoch}]')
 
             train_acc, supervised_loss, unsupervised_loss, mask_rate = self.train(train_set, optimizer, tau, unsupervised_coef)
+
+            self.ema_net.update(self.net) # update ema network
+
             test_acc = self.test(test_set)
             scheduler.step()
 
@@ -135,14 +145,14 @@ class GoMatch:
 
     
     def test(self, test_set):
-        self.net.eval()
+        self.ema_net.eval()
         correct = 0
         total = 0
 
         with torch.no_grad(), tqdm(test_set, leave=False, dynamic_ncols=True) as pbar:
             for states, labels in pbar:
                 states, labels = states.to(self.device), labels.to(self.device)
-                preds = self.net(states)
+                preds = self.ema_net(states)
 
                 predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
 
@@ -154,3 +164,18 @@ class GoMatch:
 
         return 100 * correct / total
 
+
+class EMA:
+    def __init__(self, decay, device):
+        self.decay = decay
+        self.device = device
+        self.net = None
+
+    def copy(self, source_net):
+        self.net = copy.deepcopy(source_net).to(self.device)
+
+
+    def update(self, source_net):
+        with torch.no_grad():
+            for target_param, source_param in zip(self.net.parameters(), source_net.parameters()):
+                target_param.data.copy_(self.decay * target_param.data + (1 - self.decay) * source_param.data)

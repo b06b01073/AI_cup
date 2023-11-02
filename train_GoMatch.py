@@ -41,6 +41,7 @@ if __name__ == '__main__':
     parser.add_argument('--dropout', type=float, default=0)
     parser.add_argument('--optim_type', type=str, default='sgd')
     parser.add_argument('--pretrained', type=str)
+    parser.add_argument('--ema_decay', type=float, default=0.999)
 
     args = parser.parse_args()
 
@@ -61,6 +62,7 @@ if __name__ == '__main__':
         args.model,
         args.dropout, # to initialize resnet 
         args.label_smoothing, # to initialize loss function
+        args.ema_decay,
         device,
         args.pretrained,
     )
