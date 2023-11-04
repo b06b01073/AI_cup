@@ -103,10 +103,10 @@ class GoMatch:
         self.net.train()
         correct = 0
         total = 0
-        masked_data = 0
-        total_unlabeled = 0
-        total_unsupervised_loss = 0
-        total_supervised_loss = 0
+        masked_data = torch.zeros((1,)).to(self.device)
+        total_unlabeled = torch.ones((1,)).to(self.device) # prevent devide by 0 when unsupervised_coef == 0
+        total_unsupervised_loss = torch.zeros((1,)).to(self.device)
+        total_supervised_loss = torch.zeros((1,)).to(self.device)
 
         with tqdm(train_set, leave=False, dynamic_ncols=True) as pbar:
             for labeled_states, labels, weak_augmented_states, strong_augmented_states in pbar:
@@ -118,21 +118,24 @@ class GoMatch:
 
 
                 # unsupervised loss
-                # unsupervised_loss = 0
-                weak_augmented_states = rearrange(weak_augmented_states, 'b u c h w -> (b u) c h w')
-                strong_augmented_states = rearrange(strong_augmented_states, 'b u c h w -> (b u) c h w')
+                if unsupervised_coef == 0:
+                    # pure supervised learning
+                    unsupervised_loss = 0
+                else:
+                    weak_augmented_states = rearrange(weak_augmented_states, 'b u c h w -> (b u) c h w')
+                    strong_augmented_states = rearrange(strong_augmented_states, 'b u c h w -> (b u) c h w')
 
 
-                weak_preds = F.softmax(self.net(weak_augmented_states), dim=1)
-                strong_preds = self.net(strong_augmented_states)
-                confidence, _ = torch.max(weak_preds, dim=1) 
+                    weak_preds = F.softmax(self.net(weak_augmented_states), dim=1)
+                    strong_preds = self.net(strong_augmented_states)
+                    confidence, _ = torch.max(weak_preds, dim=1) 
 
-                confidence_mask = (confidence > tau).float().squeeze()
+                    confidence_mask = (confidence > tau).float().squeeze()
 
 
-                pseudo_labels = torch.argmax(weak_preds, dim=1)
+                    pseudo_labels = torch.argmax(weak_preds, dim=1)
 
-                unsupervised_loss = (confidence_mask * self.loss_fn_none(strong_preds, pseudo_labels)).mean()
+                    unsupervised_loss = (confidence_mask * self.loss_fn_none(strong_preds, pseudo_labels)).mean()
 
 
                 # update model
@@ -158,8 +161,9 @@ class GoMatch:
                     total_supervised_loss += supervised_loss
 
                     # mask
-                    masked_data += torch.count_nonzero(confidence_mask)
-                    total_unlabeled += len(confidence_mask)
+                    if unsupervised_coef != 0:
+                        masked_data += torch.count_nonzero(confidence_mask)
+                        total_unlabeled += len(confidence_mask)
 
                 pbar.set_description(f'Train Accuracy: {100 * correct / total:.2f}%')
 

@@ -246,6 +246,7 @@ def random_moves(board):
 
         
         board[turn, random_move2d[0], random_move2d[1]] = 1
+        board[govars.INVD_CHNL, random_move2d[0], random_move2d[1]] = 1
         turn = (turn + 1) % 2
 
     return board
