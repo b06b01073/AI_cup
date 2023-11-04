@@ -11,8 +11,11 @@ from ema_pytorch import EMA
 import My_ResNet
 
 class GoMatch:
-    def __init__(self, model, dropout, label_smoothing, decay, device, pretrained):
-        self.net = self.init_model(model, dropout, pretrained).to(device)
+    def __init__(self, model, label_smoothing, decay, mean_pooling, device, pretrained):
+        self.net = self.init_model(model, mean_pooling, pretrained).to(device)
+
+        print(self.net)
+
         self.ema_net = EMA(
             self.net,
             beta = decay,              
@@ -24,31 +27,35 @@ class GoMatch:
         self.loss_fn_avg = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
         self.loss_fn_none = nn.CrossEntropyLoss(reduction='none', label_smoothing=label_smoothing)
 
-    def resnet_post_process(self, net):
-        net.conv1 = torch.nn.Conv2d(govars.FEAT_CHNLS, 64, kernel_size=7, stride=1, padding=3)
+    def resnet_post_process(self, net, mean_pooling):
+
+        # adjust i/o layer
+        net.conv1 = nn.Conv2d(govars.FEAT_CHNLS, 64, kernel_size=7, stride=1, padding=3)
         in_features = net.fc.in_features
-        net.fc = torch.nn.Linear(in_features, govars.STYLE_CAT)
+        net.fc = nn.Linear(in_features, govars.STYLE_CAT)
 
-        return net
+        if mean_pooling:
+            net.maxpool = nn.AvgPool2d(net.maxpool.kernel_size, net.maxpool.stride, net.maxpool.padding)
+            def max_2_mean(layer):
+                if isinstance(layer, nn.MaxPool2d):
+                    return nn.AvgPool2d(layer.kernel_size, layer.stride, layer.padding)
+        
+            net.apply(max_2_mean)
 
 
-    def init_model(self, model, dropout, pretrained=None):
+    def init_model(self, model, mean_pooling, pretrained=None):
         if pretrained is not None:
             print(f'Using pretrained model: {pretrained}')
             return torch.load(pretrained)
             
         if model == 'resnet18':
-            net = models.resnet18(weights=None, dropout=dropout)
-            net = self.resnet_post_process(net)
+            net = models.resnet18(weights=None)
         if model == 'resnet50':
-            net = models.resnet50(weights=None, dropout=dropout)
-            net = self.resnet_post_process(net)
+            net = models.resnet50(weights=None)
         elif model == 'resnet101':
-            net = models.resnet101(weights=None, dropout=dropout)
-            net = self.resnet_post_process(net)
+            net = models.resnet101(weights=None)
         elif model == 'wresnet':
-            net = models.wide_resnet50_2(weights=None, dropout=dropout)
-            net = self.resnet_post_process(net)
+            net = models.wide_resnet50_2(weights=None)
         elif model == 'no_downsample':
             net = My_ResNet.ResNet()
         elif model == 'vit':
@@ -62,6 +69,13 @@ class GoMatch:
                 mlp_dim=768,
                 in_channels=govars.STYLE_CHNLS
             )
+
+        
+        if 'resnet' in model:
+            # adjust i/o layers and avg pooling
+            self.resnet_post_process(net, mean_pooling)
+
+
 
         return net
 

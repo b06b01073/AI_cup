@@ -38,11 +38,12 @@ if __name__ == '__main__':
     parser.add_argument('--crop', action='store_true')
     parser.add_argument('--rand_move', action='store_true')
     parser.add_argument('--label_smoothing', type=float, default=0)
-    parser.add_argument('--dropout', type=float, default=0)
+    parser.add_argument('--dropout', type=float, default=0) # omit it in thin version
     parser.add_argument('--optim_type', type=str, default='sgd')
     parser.add_argument('--pretrained', type=str)
     parser.add_argument('--ema_decay', type=float, default=0.999)
     parser.add_argument('--restart', type=int)
+    parser.add_argument('--mean_pooling', action='store_true')
 
     args = parser.parse_args()
 
@@ -61,9 +62,9 @@ if __name__ == '__main__':
     )
     go_match = GoMatch(
         args.model,
-        args.dropout, # to initialize resnet 
         args.label_smoothing, # to initialize loss function
         args.ema_decay,
+        args.mean_pooling,
         device,
         args.pretrained,
     )
