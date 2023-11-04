@@ -175,6 +175,7 @@ class GoMatch:
     def test(self, test_set):
         correct = 0
         total = 0
+        self.ema_net.eval()
 
         with torch.no_grad(), tqdm(test_set, leave=False, dynamic_ncols=True) as pbar:
             for states, labels in pbar:
