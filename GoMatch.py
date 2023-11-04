@@ -7,13 +7,18 @@ from einops import rearrange
 from tqdm import tqdm
 import os
 from torchvision.models.vision_transformer import VisionTransformer as ViT
-import copy
+from ema_pytorch import EMA
+import My_ResNet
 
 class GoMatch:
     def __init__(self, model, dropout, label_smoothing, decay, device, pretrained):
         self.net = self.init_model(model, dropout, pretrained).to(device)
-        self.ema_net = EMA(decay=decay, device=device)
-        self.ema_net.copy(self.net)
+        self.ema_net = EMA(
+            self.net,
+            beta = decay,              
+            update_after_step = 100,    
+            update_every = 10,          
+        ).to(device)
 
         self.device = device
         self.loss_fn_avg = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
@@ -44,6 +49,8 @@ class GoMatch:
         elif model == 'wresnet':
             net = models.wide_resnet50_2(weights=None, dropout=dropout)
             net = self.resnet_post_process(net)
+        elif model == 'no_downsample':
+            net = My_ResNet.ResNet()
         elif model == 'vit':
             net = ViT(
                 image_size=govars.PADDED_SIZE,
@@ -113,6 +120,7 @@ class GoMatch:
 
                 unsupervised_loss = (confidence_mask * self.loss_fn_none(strong_preds, pseudo_labels)).mean()
 
+
                 # update model
                 optimizer.zero_grad()
                 loss = supervised_loss + unsupervised_coef * unsupervised_loss
@@ -120,8 +128,11 @@ class GoMatch:
                 nn.utils.clip_grad_norm_(self.net.parameters(), 1)
                 optimizer.step()
 
-                self.ema_net.update(self.net) # update ema network
+                # update ema network
+                self.ema_net.update() 
         
+
+                # stats
                 with torch.no_grad():
                     # acc
                     predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
@@ -144,7 +155,6 @@ class GoMatch:
 
     
     def test(self, test_set):
-        self.ema_net.eval()
         correct = 0
         total = 0
 
@@ -163,18 +173,3 @@ class GoMatch:
 
         return 100 * correct / total
 
-
-class EMA:
-    def __init__(self, decay, device):
-        self.decay = decay
-        self.device = device
-        self.net = None
-
-    def copy(self, source_net):
-        self.net = copy.deepcopy(source_net).to(self.device)
-
-
-    def update(self, source_net):
-        with torch.no_grad():
-            for target_param, source_param in zip(self.net.parameters(), source_net.parameters()):
-                target_param.data.copy_(self.decay * target_param.data + (1 - self.decay) * source_param.data)

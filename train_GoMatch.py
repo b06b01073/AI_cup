@@ -42,6 +42,7 @@ if __name__ == '__main__':
     parser.add_argument('--optim_type', type=str, default='sgd')
     parser.add_argument('--pretrained', type=str)
     parser.add_argument('--ema_decay', type=float, default=0.999)
+    parser.add_argument('--restart', type=int)
 
     args = parser.parse_args()
 
@@ -76,9 +77,12 @@ if __name__ == '__main__':
         weight_decay=args.weight_decay
     )
 
+
+    restart = args.epoch if args.restart is None else args.restart
+
     scheduler = CosineAnnealingWarmRestarts(
         optimizer=optimizer,
-        T_0=args.epoch,
+        T_0=restart,
     )
 
 
