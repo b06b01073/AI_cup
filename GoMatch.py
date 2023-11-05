@@ -22,6 +22,7 @@ class GoMatch:
             update_after_step = 100,    
             update_every = 10,          
         ).to(device)
+        self.ema_net.eval()
 
         self.device = device
         self.loss_fn_avg = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
