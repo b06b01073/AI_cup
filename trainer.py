@@ -42,7 +42,7 @@ class Trainer:
                 print(f'saving new model with best score: {test_ai_cup_score:.6f}')
                 patience_count = 0
 
-            if patience_count > patience:
+            if patience_count > patience and patience != -1:
                 break
 
         with open(f'{self.task}_result.txt', 'a') as f:
@@ -73,13 +73,13 @@ class Trainer:
             loss.backward()
             optimizer.step()
 
-            with torch.no_grad():
-                predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
-                # Compare the predicted classes to the target labels
-                correct_preds += torch.sum(predicted_classes == target).item()
-                top5_hit += self.batch_topk_hit(preds, target)
+            predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
+            target_index = torch.argmax(target, dim=1)
+            # Compare the predicted classes to the target labels
+            correct_preds += torch.sum(predicted_classes == target_index).item()
+            top5_hit += self.batch_topk_hit(preds, target_index)
 
-                total_preds += target.shape[0]
+            total_preds += target.shape[0]
 
             if iter % acc_interval == 0 and iter != 0:
                 print(f'Accumulated training accuracy [{100 * iter / len(dataset):.2f}%]: top1: {correct_preds / total_preds:.4f}, top5: {top5_hit / total_preds:.4f}')
@@ -104,9 +104,10 @@ class Trainer:
                 preds = net(states) 
 
                 predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
+                target_index = torch.argmax(target, dim=1)
                 # Compare the predicted classes to the target labels
-                correct_preds += torch.sum(predicted_classes == target).item()
-                top5_hit += self.batch_topk_hit(preds, target)
+                correct_preds += torch.sum(predicted_classes == target_index).item()
+                top5_hit += self.batch_topk_hit(preds, target_index)
 
                 total_preds += target.shape[0]
 

@@ -14,24 +14,20 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--path', type=str, default='./dataset/training/dan_train.csv')
     parser.add_argument('--model', type=str, default='ViT')
-    parser.add_argument('--eta_start', type=float, default=1e-4)
-
-    parser.add_argument('--epoch', '-e', type=int, default=100)
+    parser.add_argument('--lr', type=float, default=1e-4)
+    parser.add_argument('--epoch', '-e', type=int, default=200)
     parser.add_argument('--patch_size', '-p', default=7, type=int)
     parser.add_argument('--embedded_dim', '-d', default=768, type=int)
     parser.add_argument('--encoder_layer', '-l', default=6, type=int)
     parser.add_argument('--num_class', '-c', default=362, type=int)
     parser.add_argument('--num_head', '-nh', default=8, type=int)
-    parser.add_argument('--drop', default=0, type=float)
+    parser.add_argument('--dropout', default=0, type=float)
     parser.add_argument('--weight_decay', '--wd', default=0, type=float)
-    parser.add_argument('--label_smoothing', '--ls', default=0.1, type=float)
     parser.add_argument('--pretrained', '--pt', type=str)
     parser.add_argument('--split', '-s', type=float, default=0.9)
     parser.add_argument('--save_dir', '--sd', type=str, default='./model_params')
     parser.add_argument('--task', '-t', type=str, default='dan')
-    parser.add_argument('--T_max', type=int, default=5)
-    parser.add_argument('--eta_min', type=float, default=1e-5)
-    parser.add_argument('--patience', type=int, default=6)
+    parser.add_argument('--patience', type=int, default=-1)
 
 
     args = parser.parse_args()
@@ -54,11 +50,12 @@ if __name__ == '__main__':
             num_layers=args.encoder_layer,
             hidden_dim=args.embedded_dim,
             mlp_dim=args.embedded_dim,
-            in_channels=govars.FEAT_CHNLS
+            in_channels=govars.FEAT_CHNLS,
+            dropout=args.dropout
         )
 
 
-    optimizer = optim.Adam(net.parameters(), lr=args.eta_start, weight_decay=args.weight_decay) 
+    optimizer = optim.Adam(net.parameters(), lr=args.lr) 
     loss_func = nn.CrossEntropyLoss()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     trainer = Trainer(
