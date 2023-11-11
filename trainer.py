@@ -74,10 +74,9 @@ class Trainer:
             optimizer.step()
 
             predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
-            target_index = torch.argmax(target, dim=1)
             # Compare the predicted classes to the target labels
-            correct_preds += torch.sum(predicted_classes == target_index).item()
-            top5_hit += self.batch_topk_hit(preds, target_index)
+            correct_preds += torch.sum(predicted_classes == target).item()
+            top5_hit += self.batch_topk_hit(preds, target)
 
             total_preds += target.shape[0]
 
@@ -104,10 +103,9 @@ class Trainer:
                 preds = net(states) 
 
                 predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
-                target_index = torch.argmax(target, dim=1)
                 # Compare the predicted classes to the target labels
-                correct_preds += torch.sum(predicted_classes == target_index).item()
-                top5_hit += self.batch_topk_hit(preds, target_index)
+                correct_preds += torch.sum(predicted_classes == target).item()
+                top5_hit += self.batch_topk_hit(preds, target)
 
                 total_preds += target.shape[0]
 
