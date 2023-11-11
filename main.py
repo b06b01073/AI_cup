@@ -31,6 +31,7 @@ if __name__ == '__main__':
 
 
     args = parser.parse_args()
+    print(args)
 
     if not os.path.exists(args.save_dir):
         os.mkdir(args.save_dir)
@@ -55,7 +56,7 @@ if __name__ == '__main__':
         )
 
 
-    optimizer = optim.Adam(net.parameters(), lr=args.lr) 
+    optimizer = optim.Adam(net.parameters(), lr=args.lr, weight_decay=args.weight_decay) 
     loss_func = nn.CrossEntropyLoss()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     trainer = Trainer(
