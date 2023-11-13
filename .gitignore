@@ -7,3 +7,4 @@ test.py
 *.txt
 result
 test_validation.py
+model_params
