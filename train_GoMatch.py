@@ -27,8 +27,8 @@ if __name__ == '__main__':
     parser.add_argument('--unlabeled_size', type=int, default=12)
     parser.add_argument('--path', '-p', type=str, default='./dataset/training/play_style_train.csv')
     parser.add_argument('--split', '-s', type=float, default=0.9)
-    parser.add_argument('--lr', type=float, default=2e-2)
-    parser.add_argument('--epoch', type=int, default=300)
+    parser.add_argument('--lr', type=float, default=1e-2)
+    parser.add_argument('--epoch', type=int, default=200)
     parser.add_argument('--tau', type=float, default=0.95)
     parser.add_argument('--momentum', type=float, default=0.9)
     parser.add_argument('--nesterov', action='store_false')
@@ -42,7 +42,6 @@ if __name__ == '__main__':
     parser.add_argument('--optim_type', type=str, default='sgd')
     parser.add_argument('--pretrained', type=str)
     parser.add_argument('--ema_decay', type=float, default=0.999)
-    parser.add_argument('--restart', type=int)
     parser.add_argument('--mean_pooling', action='store_true')
 
     args = parser.parse_args()
@@ -79,11 +78,10 @@ if __name__ == '__main__':
     )
 
 
-    restart = args.epoch if args.restart is None else args.restart
 
     scheduler = CosineAnnealingWarmRestarts(
         optimizer=optimizer,
-        T_0=restart,
+        T_0=args.epoch,
     )
 
 

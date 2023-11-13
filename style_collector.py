@@ -6,11 +6,15 @@ import govars
 import goutils
 from tqdm import tqdm
 import torch
+import numpy as np
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def predict(net, game_feature, file_name, visualize, tta):
     last_position = goutils.pad_board(game_feature)
+    last_position = goutils.crop_move_as_center(last_position)
     last_position = torch.from_numpy(last_position).unsqueeze(dim=0).to(device)
+
 
     if tta:
         pred = goutils.test_time_style(last_position, net, device)
@@ -27,6 +31,7 @@ def predict(net, game_feature, file_name, visualize, tta):
 
     return f'{file_name},{style}'
     # f.write(f'file')
+
 
 if __name__ == '__main__':
 

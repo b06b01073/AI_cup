@@ -262,3 +262,26 @@ def strong_augment(board, crop, rand_move):
     board = gogame.random_symmetry(board)
 
     return board
+
+
+def crop_move_as_center(game_features, pad_size=9, crop_size=9):
+    half_crop_size = crop_size // 2
+    last_move_r, last_move_c = np.where(game_features[-1] == 1)
+
+    
+
+    padded_game_features = np.pad(game_features, pad_width=((0, 0), (pad_size, pad_size), (pad_size, pad_size)), constant_values=0)
+
+    last_move_r += pad_size
+    last_move_c += pad_size
+
+    start_x = int(last_move_c - half_crop_size)
+    end_x = int(last_move_c + half_crop_size + 1)
+
+    start_y = int(last_move_r - half_crop_size)
+    end_y = int(last_move_r + half_crop_size + 1)
+
+    cropped_game_features = padded_game_features[:, start_y:end_y, start_x:end_x]
+
+
+    return cropped_game_features.copy()
