@@ -207,6 +207,21 @@ def go_match_loader(path, split, unlabeled_size, batch_size, crop, rand_move):
     return DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=6), DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=6)
 
 
+def get_loader(path, split, bootstrap=False):
+    games = GoParser.file_parser(path)
+    train_len = int(len(games) * split)
+    train_games = games[:train_len]
+    if bootstrap:
+        train_games = bootstrap(train_games)
+
+    val_games = games[train_len:]
+    train_dataset = GoDataset(train_games, augment=True)
+    test_dataset = GoDataset(val_games, augment=False)
+
+    return DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=12), DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=12)
+
+
+
 if __name__ == '__main__':
     # dataset = GoDataset('./dataset/training/dan_train.csv')
     # states, moves = dataset[0]
