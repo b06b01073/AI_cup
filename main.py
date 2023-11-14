@@ -37,6 +37,9 @@ if __name__ == '__main__':
         os.mkdir(args.save_dir)
     
 
+    file_name = f'{args.task}_{args.encoder_layer}_{args.dropout}.pth'
+    print(f'The model will be saved under {args.save_dir} with file name {file_name}')
+
     path = args.path
     train_set, test_set = GoDataset.get_loader(path, args.split)
     if args.pretrained is not None:

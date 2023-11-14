@@ -13,12 +13,11 @@ class Trainer:
         print(f'Training on {self.device}')
 
 
-    def fit(self, net, train_set, test_set, epoch, patience, encoder_layer, split_index=0):
+    def fit(self, net, train_set, test_set, epoch, patience, file_name):
         # encoder_layer is passed to distinguish model parameter file, split_index is passed to specify the boostrap dataset index
         net = net.to(self.device)
         patience_count = 0
         best_acc = 0
-        best_ai_cup_score = 0
 
         for e in range(epoch):
             print(f'Epoch {e} just started...')
@@ -31,22 +30,13 @@ class Trainer:
 
             if test_acc >= best_acc:
                 best_acc = test_acc
-                torch.save(net, os.path.join(self.save_dir, f'{split_index}_{encoder_layer}_{self.task}.pth'))
+                torch.save(net, os.path.join(self.save_dir, file_name))
                 print(f'saving new model with test_acc: {test_acc:.6f}')
                 patience_count = 0
             
-            test_ai_cup_score = 0.25 * test_acc + 0.1 * top5_acc
-            if test_ai_cup_score >= best_ai_cup_score:
-                best_ai_cup_score = test_ai_cup_score
-                torch.save(net, os.path.join(self.save_dir, f'ai_{split_index}_{encoder_layer}_{self.task}.pth'))
-                print(f'saving new model with best score: {test_ai_cup_score:.6f}')
-                patience_count = 0
-
             if patience_count > patience and patience != -1:
                 break
 
-        with open(f'{self.task}_result.txt', 'a') as f:
-            f.write(f'l: {encoder_layer}, acc: {best_acc}, ai_cup_score: {best_ai_cup_score}\n')
 
     
     def train(self, dataset, net, optimizer, loss_func):
