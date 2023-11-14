@@ -376,9 +376,9 @@ def random_symmetry(board, move=None):
 
     if move is not None:
         move[:govars.ACTION_SPACE - 1] = non_pass_moves.flatten()
-        return board, np.argmax(move)
+        return board.copy(), np.argmax(move)
     else:
-        return board
+        return board.copy()
 
 
 def all_symmetries(image):
