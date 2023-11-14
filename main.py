@@ -7,6 +7,7 @@ import torch
 import govars
 from torchvision.models.vision_transformer import VisionTransformer as ViT
 from trainer import Trainer
+import os
 
 
 
@@ -38,6 +39,7 @@ if __name__ == '__main__':
     
 
     file_name = f'{args.task}_{args.encoder_layer}_{args.dropout}.pth'
+
     print(f'The model will be saved under {args.save_dir} with file name {file_name}')
 
     path = args.path
@@ -76,5 +78,5 @@ if __name__ == '__main__':
         test_set, 
         args.epoch, 
         args.patience,
-        args.encoder_layer,
+        file_name,
     )
