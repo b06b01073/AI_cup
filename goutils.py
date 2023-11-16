@@ -147,29 +147,19 @@ def test_time_style(board, net, device):
 
     augments = [(k, f) for k in rotate_k for f in flip]
     for (rotate_times, f) in augments:
-        # augmentation and prediction
         augmented_board = board
-        # print(augmented_board.shape)
         if f:
             augmented_board = torch.flip(augmented_board, dims=(2,))
         augmented_board = torch.rot90(augmented_board, k=rotate_times, dims=(2, 3))
 
-        # print(augmented_board.shape)
         augmented_preds = net(augmented_board).squeeze()
 
-        # mask invalid moves, it seems like the model handles this perfectly itself, diff command shows no difference 
-        # for action1d in range(govars.ACTION_SPACE - 1):
-        #     move2d = move_decode(action1d)
-        #     if augmented_board[govars.INVD_CHNL][move2d[0], move2d[1]] == 1:
-        #         augmented_preds[move2d[0]][move2d[1]] = float('-inf')
 
         augmented_preds = torch.softmax(augmented_preds, dim=0)
 
-        # restore the prediction to the original coord system
-        # note that it "have" to be done in the reverse order
         augmented_preds = augmented_preds.flatten()
         preds += augmented_preds
-    return preds / 3
+    return preds / len(augments)
         
 
 def mask_moves(pred):
