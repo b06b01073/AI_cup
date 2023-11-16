@@ -83,7 +83,7 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, default='resnet18')
     parser.add_argument('--lr', type=float, default=1e-2)
 
-    parser.add_argument('--epoch', '-e', type=int, default=200)
+    parser.add_argument('--epoch', '-e', type=int, default=150)
     parser.add_argument('--num_class', '-c', default=3, type=int)
     parser.add_argument('--drop', default=0, type=float)
     parser.add_argument('--weight_decay', '--wd', default=5e-4, type=float)
@@ -95,7 +95,7 @@ if __name__ == '__main__':
     parser.add_argument('--momentum', type=float, default=0.9)
     parser.add_argument('--nesterov', action='store_false')
     parser.add_argument('--folds', type=int, default=5)
-    parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--baggings', type=int, default=10)
     parser.add_argument('--bagging_portion', type=float, default=0.9)
 
