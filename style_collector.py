@@ -13,8 +13,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def predict(net, game_feature, tta):
     with torch.no_grad():
-        last_position = goutils.pad_board(game_feature)
-        last_position = torch.from_numpy(last_position).unsqueeze(dim=0).to(device)
+        last_position = torch.from_numpy(game_feature).unsqueeze(dim=0).to(device)
 
 
         if tta:
@@ -26,6 +25,30 @@ def predict(net, game_feature, tta):
 
         return pred
 
+def fetch_features(games):
+    games = games[:10]
+    game_features = []
+    for game in tqdm(games):
+        game = game.split(',')
+        go_env = Go()
+
+        last_move = 'W'
+
+        for move in game:
+
+            # handle the PASS scenario
+            if move[0] == last_move:
+                # there's an in-between pass move
+                go_move, _ = goutils.move_encode(govars.PASS)
+                go_env.make_move(go_move)
+                
+
+            go_move, _ = goutils.move_encode(move) # go_move is for the go env, moves[move_id] is the one hot vector
+
+            go_env.make_move(go_move)
+            last_move = move[0]
+        game_features.append(goutils.pad_board(go_env.game_features()))
+    return game_features
 
 if __name__ == '__main__':
 
@@ -37,36 +60,18 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     ensemble_preds = None
+    games, file_names = GoParser.file_test_parser(args.test_file)
+    game_features = fetch_features(games)
 
     with open(args.output, 'w') as f:
-        games, file_names = GoParser.file_test_parser(args.test_file)
+       
         for path in os.listdir(args.ensemble_path):
-            net = torch.load(os.path.join(args.ensemble_path,path)).to(device)
+            net = torch.load(os.path.join(args.ensemble_path, path)).to(device)
             net.eval()
 
-
             preds = []
-            for game, file_name in tqdm(zip(games, file_names)):
-                game = game.split(',')
-                go_env = Go()
-
-                last_move = 'W'
-
-                for move in game:
-
-                    # handle the PASS scenario
-                    if move[0] == last_move:
-                        # there's an in-between pass move
-                        go_move, _ = goutils.move_encode(govars.PASS)
-                        go_env.make_move(go_move)
-                        
-
-                    go_move, _ = goutils.move_encode(move) # go_move is for the go env, moves[move_id] is the one hot vector
-
-                    go_env.make_move(go_move)
-                    last_move = move[0]
-
-                preds.append(predict(net, go_env.game_features(), args.tta))
+            for feature in tqdm(game_features, dynamic_ncols=True):
+                preds.append(predict(net, feature, args.tta))
 
             if ensemble_preds is None:
                 ensemble_preds = torch.zeros((len(preds), govars.STYLE_CAT)).to(device)
