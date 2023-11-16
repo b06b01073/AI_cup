@@ -14,9 +14,18 @@ from torch.utils.data import DataLoader, Subset
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+def mixup(targets, states, lam):
+    batch_size = states.shape[0]
 
+    rand_indices = torch.randperm(batch_size)
+    
+    mixup_states = lam * states + (1 - lam) * states[rand_indices, :] 
 
-def train(dataset, net, optimizer, loss_func):
+    original_targets, outer_targets = targets, targets[rand_indices]
+
+    return original_targets, outer_targets, mixup_states 
+
+def train(dataset, net, optimizer, loss_func, alpha):
     '''
         dataset(Dataloader)
         net(nn)
@@ -27,26 +36,22 @@ def train(dataset, net, optimizer, loss_func):
     correct_preds = 0
     total_preds = 0
 
-    for states, target in dataset:
+    for states, targets in dataset:
         states = states.to(device)
-        target = target.to(device)
+        targets = targets.to(device)
 
-        preds = net(states) 
+        lam = np.random.beta(alpha, alpha) # lam * ori + (1 - lam) * outer
+        original_targets, outer_targets, mixup_states = mixup(targets, states, lam)
+
+        preds = net(mixup_states) 
 
         optimizer.zero_grad()
 
-        loss = loss_func(preds, target)
+        loss = lam * loss_func(preds, original_targets) + (1 - lam) * loss_func(preds, outer_targets)
         loss.backward()
         optimizer.step()
 
-        predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
-        # Compare the predicted classes to the target labels
-        correct_preds += torch.sum(predicted_classes == target).item()
-
-        total_preds += target.shape[0]
-
-
-    return correct_preds / total_preds
+    return loss.item()
 
 def test(dataset, net):
     '''
@@ -92,14 +97,16 @@ def eval_ensemble(dataset, preds_proba):
     return correct_preds / total_preds
 
 def init_net(model):
-    print('Training ResNet')
-    # net = ResNet(num_layers=20)
-    net = models.resnet18(weights=None)
-    new_conv1 = torch.nn.Conv2d(govars.FEAT_CHNLS, 64, kernel_size=7, stride=1, padding=3)
-    net.conv1 = new_conv1
-    in_features = net.fc.in_features
-    net.fc = torch.nn.Linear(in_features, govars.STYLE_CAT)
 
+    if 'resnet' in model:
+        print('Training ResNet')
+        # net = ResNet(num_layers=20)
+        if model == 'resnet18':
+            net = models.resnet18(weights=None)
+            new_conv1 = nn.Conv2d(govars.FEAT_CHNLS, 64, kernel_size=7, stride=1, padding=3)
+            net.conv1 = new_conv1
+        in_features = net.fc.in_features
+        net.fc = nn.Linear(in_features, govars.STYLE_CAT)
 
     return net
 
@@ -110,21 +117,21 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, default='resnet18')
     parser.add_argument('--lr', type=float, default=1e-2)
 
-    parser.add_argument('--epoch', '-e', type=int, default=150)
+    parser.add_argument('--epoch', '-e', type=int, default=100)
     parser.add_argument('--num_class', '-c', default=3, type=int)
-    parser.add_argument('--drop', default=0, type=float)
     parser.add_argument('--weight_decay', '--wd', default=5e-4, type=float)
     parser.add_argument('--label_smoothing', '--ls', default=0, type=float)
     parser.add_argument('--pretrained', '--pt', type=str)
-    parser.add_argument('--split', '-s', type=float, default=0.9)
     parser.add_argument('--save_dir', '--sd', type=str, default='./model_params')
     parser.add_argument('--momentum', type=float, default=0.9)
     parser.add_argument('--nesterov', action='store_false')
     parser.add_argument('--folds', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=256)
-    parser.add_argument('--baggings', type=int, default=10)
+    parser.add_argument('--baggings', type=int, default=15)
     parser.add_argument('--bagging_portion', type=float, default=0.9)
+    parser.add_argument('--mixup_alpha', type=float, default=1.0)
     parser.add_argument('--num_workers', type=int, default=6)
+    
 
 
     args = parser.parse_args()
@@ -196,7 +203,7 @@ if __name__ == '__main__':
             # training and testing loop
             with tqdm(range(args.epoch), dynamic_ncols=True) as pbar:
                 for epoch in pbar:
-                    train_acc = train(bagging_loader, net, optimizer, loss_func)
+                    train_loss = train(bagging_loader, net, optimizer, loss_func, args.mixup_alpha)
                     test_acc, preds_proba = test(val_loader, net)
 
                     if test_acc >= best_acc:
@@ -206,13 +213,13 @@ if __name__ == '__main__':
 
                     lr_scheduler.step()
 
-                    pbar.set_description(f'train: {train_acc:.4f}, val: {test_acc:.4f}, best: {best_acc:.4f}')
+                    pbar.set_description(f'train loss: {train_loss:.4f}, val: {test_acc:.4f}, best: {best_acc:.4f}')
 
             print(f'saving new model with best_acc: {best_acc:.6f}')
             ensemble_preds_prob += preds_proba
 
 
-        individual_perf.append(best_acc)
+            individual_perf.append(best_acc)
         ensemble_preds_prob /= args.baggings # just to normalize (not necessary)
         ensemble_acc = eval_ensemble(val_set, ensemble_preds_prob)
 

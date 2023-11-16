@@ -26,7 +26,6 @@ def predict(net, game_feature, tta):
         return pred
 
 def fetch_features(games):
-    games = games[:10]
     game_features = []
     for game in tqdm(games):
         game = game.split(',')
