@@ -43,12 +43,12 @@ def train(dataset, net, optimizer, loss_func):
 
     return correct_preds / total_preds
 
-def test(dataset, net, e):
+def test(dataset, net):
     net.eval()
     correct_preds = 0
     total_preds = 0
     with torch.no_grad():
-        for states, target in tqdm(dataset, desc=f'epoch {e}'):
+        for states, target in dataset:
             states = states.to(device)
             target = target.to(device)
 
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     parser.add_argument('--task', '-t', type=str, default='style')
     parser.add_argument('--momentum', type=float, default=0.9)
     parser.add_argument('--nesterov', action='store_false')
-    parser.add_argument('--folds', type=int, default=5)
+    parser.add_argument('--folds', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--baggings', type=int, default=10)
     parser.add_argument('--bagging_portion', type=float, default=0.9)
@@ -133,7 +133,7 @@ if __name__ == '__main__':
             num_workers=6
         )
 
-        
+
         for b in range(args.baggings):
             bagging_indices = np.random.choice(range(len(train_set)), int(len(train_set) * args.bagging_portion))
 
@@ -157,15 +157,18 @@ if __name__ == '__main__':
             ) 
             lr_scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=args.epoch)
             best_acc = 0
-            for e in range(args.epoch):
-                train_acc = train(bagging_loader, net, optimizer, loss_func)
-                test_acc = test(val_loader, net, e)
-                lr_scheduler.step()
+            with tqdm(range(args.epoch), dynamic_ncols=True) as pbar:
+                for epoch in pbar:
+                    train_acc = train(bagging_loader, net, optimizer, loss_func)
+                    test_acc = test(val_loader, net)
 
-                print(f'training acc: {train_acc:.4f}, testing acc: {test_acc:.4f}')
 
-                if test_acc >= best_acc:
-                    best_acc = test_acc
-                    torch.save(net, os.path.join(args.save_dir, 'bagging', f'{args.model}_{args.task}_fold_{fold}_bagging_{b}.pth'))
-                    print(f'saving new model with test_acc: {test_acc:.6f}')
+                    if test_acc >= best_acc:
+                        best_acc = test_acc
+                        torch.save(net, os.path.join(args.save_dir, 'bagging', f'{args.model}_{args.task}_fold_{fold}_bagging_{b}.pth'))
 
+                    lr_scheduler.step()
+
+                    pbar.set_description(f'train: {train_acc}, val: {test_acc}, best: {best_acc}')
+
+            print(f'saving new model with best_acc: {best_acc:.6f}')
