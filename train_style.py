@@ -9,7 +9,7 @@ from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from tqdm import tqdm
 from torchvision import models
 import numpy as np
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import KFold
 from torch.utils.data import DataLoader, Subset
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -98,6 +98,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--baggings', type=int, default=10)
     parser.add_argument('--bagging_portion', type=float, default=0.9)
+    parser.add_argument('--num_workers', type=int, default=6)
 
 
     args = parser.parse_args()
@@ -110,11 +111,11 @@ if __name__ == '__main__':
 
 
     games, labels = np.load(args.games_path), np.load(args.labels_path)
-    kfold = StratifiedKFold(n_splits=args.folds)
+    kfold = KFold(n_splits=args.folds)
     
     # optimizer = optim.Adam(net.parameters(), lr=args.eta_start)
 
-    for fold, (train_indices, val_indices) in enumerate(kfold.split(games, labels)):
+    for fold, (train_indices, val_indices) in enumerate(kfold.split(games)):
         train_set = GoDataset.StyleDataset(
             labels=labels[train_indices],
             games=games[train_indices],
@@ -130,7 +131,7 @@ if __name__ == '__main__':
         val_loader = DataLoader(
             dataset=val_set,
             batch_size=args.batch_size,
-            num_workers=6
+            num_workers=args.num_workers
         )
 
 
@@ -141,7 +142,8 @@ if __name__ == '__main__':
             bagging_loader = DataLoader(
                 bagging_subset, 
                 batch_size=args.batch_size,
-                shuffle=True
+                shuffle=True,
+                num_workers=args.num_workers
             )
 
 
@@ -169,6 +171,6 @@ if __name__ == '__main__':
 
                     lr_scheduler.step()
 
-                    pbar.set_description(f'train: {train_acc}, val: {test_acc}, best: {best_acc}')
+                    pbar.set_description(f'train: {train_acc:.4f}, val: {test_acc:.4f}, best: {best_acc:.4f}')
 
             print(f'saving new model with best_acc: {best_acc:.6f}')
