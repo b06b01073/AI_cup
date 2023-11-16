@@ -17,6 +17,11 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
 def train(dataset, net, optimizer, loss_func):
+    '''
+        dataset(Dataloader)
+        net(nn)
+    '''
+
     net.train()
 
     correct_preds = 0
@@ -44,25 +49,47 @@ def train(dataset, net, optimizer, loss_func):
     return correct_preds / total_preds
 
 def test(dataset, net):
+    '''
+        dataset(Dataloader)
+        net(nn)
+    '''
     net.eval()
     correct_preds = 0
     total_preds = 0
+    total_preds_proba = torch.empty(0).to(device)
+
     with torch.no_grad():
         for states, target in dataset:
             states = states.to(device)
             target = target.to(device)
 
             preds = net(states) 
-
-            predicted_classes = torch.argmax(torch.softmax(preds, dim=1), dim=1)
+            preds_proba = torch.softmax(preds, dim=1)
+            predicted_classes = torch.argmax(preds_proba, dim=1)
             # Compare the predicted classes to the target labels
             correct_preds += torch.sum(predicted_classes == target).item()
 
             total_preds += target.shape[0]
 
+            total_preds_proba = torch.concat((total_preds_proba, preds_proba), dim=0)
+
+
+    return correct_preds / total_preds, total_preds_proba
+
+
+def eval_ensemble(dataset, preds_proba):
+    '''
+        dataset(StyleDataset)
+    '''
+    total_preds = len(dataset)
+    correct_preds = 0
+    preds = torch.argmax(preds_proba, dim=1).to('cpu').numpy()
+
+    for data, pred in zip(dataset, preds):
+        if pred == data[1]: 
+            correct_preds += 1
 
     return correct_preds / total_preds
-
 
 def init_net(model):
     print('Training ResNet')
@@ -91,7 +118,6 @@ if __name__ == '__main__':
     parser.add_argument('--pretrained', '--pt', type=str)
     parser.add_argument('--split', '-s', type=float, default=0.9)
     parser.add_argument('--save_dir', '--sd', type=str, default='./model_params')
-    parser.add_argument('--task', '-t', type=str, default='style')
     parser.add_argument('--momentum', type=float, default=0.9)
     parser.add_argument('--nesterov', action='store_false')
     parser.add_argument('--folds', type=int, default=10)
@@ -116,6 +142,8 @@ if __name__ == '__main__':
     # optimizer = optim.Adam(net.parameters(), lr=args.eta_start)
 
     for fold, (train_indices, val_indices) in enumerate(kfold.split(games)):
+        print(f'Fold {fold}')
+
         train_set = GoDataset.StyleDataset(
             labels=labels[train_indices],
             games=games[train_indices],
@@ -134,6 +162,9 @@ if __name__ == '__main__':
             num_workers=args.num_workers
         )
 
+
+        individual_perf = []
+        ensemble_preds_prob = torch.zeros((len(val_set), govars.STYLE_CAT,)).to(device)
 
         for b in range(args.baggings):
             bagging_indices = np.random.choice(range(len(train_set)), int(len(train_set) * args.bagging_portion))
@@ -159,18 +190,31 @@ if __name__ == '__main__':
             ) 
             lr_scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=args.epoch)
             best_acc = 0
+            best_preds = None
+
+
+            # training and testing loop
             with tqdm(range(args.epoch), dynamic_ncols=True) as pbar:
                 for epoch in pbar:
                     train_acc = train(bagging_loader, net, optimizer, loss_func)
-                    test_acc = test(val_loader, net)
-
+                    test_acc, preds_proba = test(val_loader, net)
 
                     if test_acc >= best_acc:
                         best_acc = test_acc
-                        torch.save(net, os.path.join(args.save_dir, 'bagging', f'{args.model}_{args.task}_fold_{fold}_bagging_{b}.pth'))
+                        best_preds = preds_proba
+                        torch.save(net, os.path.join(args.save_dir, 'bagging', f'{args.model}_fold_{fold}_bagging_{b}.pth'))
 
                     lr_scheduler.step()
 
                     pbar.set_description(f'train: {train_acc:.4f}, val: {test_acc:.4f}, best: {best_acc:.4f}')
 
             print(f'saving new model with best_acc: {best_acc:.6f}')
+            ensemble_preds_prob += preds_proba
+
+
+        individual_perf.append(best_acc)
+        ensemble_preds_prob /= args.baggings # just to normalize (not necessary)
+        ensemble_acc = eval_ensemble(val_set, ensemble_preds_prob)
+
+        print(f'Individual performance (fold {fold})', individual_perf)
+        print(f'ensemble acc: {ensemble_acc}')
