@@ -9,8 +9,8 @@ from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from tqdm import tqdm
 from torchvision import models
 import numpy as np
-from sklearn.model_selection import KFold
-from torch.utils.data import DataLoader
+from sklearn.model_selection import StratifiedKFold
+from torch.utils.data import DataLoader, Subset
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -94,24 +94,27 @@ if __name__ == '__main__':
     parser.add_argument('--task', '-t', type=str, default='style')
     parser.add_argument('--momentum', type=float, default=0.9)
     parser.add_argument('--nesterov', action='store_false')
-    parser.add_argument('--folds', type=int, default=10)
+    parser.add_argument('--folds', type=int, default=5)
     parser.add_argument('--batch_size', type=int, default=128)
+    parser.add_argument('--baggings', type=int, default=10)
+    parser.add_argument('--bagging_portion', type=float, default=0.9)
 
 
     args = parser.parse_args()
 
     if not os.path.exists(args.save_dir):
         os.mkdir(args.save_dir)
-    
+    if not os.path.exists(os.path.join(args.save_dir, 'bagging')):
+        os.mkdir(os.path.join(args.save_dir, 'bagging'))
 
 
 
     games, labels = np.load(args.games_path), np.load(args.labels_path)
-    kfold = KFold(n_splits=args.folds)
+    kfold = StratifiedKFold(n_splits=args.folds)
     
     # optimizer = optim.Adam(net.parameters(), lr=args.eta_start)
 
-    for fold, (train_indices, val_indices) in enumerate(kfold.split(games)):
+    for fold, (train_indices, val_indices) in enumerate(kfold.split(games, labels)):
         train_set = GoDataset.StyleDataset(
             labels=labels[train_indices],
             games=games[train_indices],
@@ -124,42 +127,45 @@ if __name__ == '__main__':
             augment=False
         )
 
-        train_set = DataLoader(
-            dataset=train_set,
-            batch_size=args.batch_size,
-            shuffle=True,
-            num_workers=6
-        )
-
-        val_set = DataLoader(
+        val_loader = DataLoader(
             dataset=val_set,
             batch_size=args.batch_size,
             num_workers=6
         )
 
+        
+        for b in range(args.baggings):
+            bagging_indices = np.random.choice(range(len(train_set)), int(len(train_set) * args.bagging_portion))
 
-        net = init_net(args.model)
-        net = net.to(device)
-        loss_func = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
-        optimizer = optim.SGD(
-            net.parameters(), 
-            lr=args.lr, 
-            weight_decay=args.weight_decay,
-            momentum=args.momentum,
-            nesterov=args.nesterov
-        ) 
-        lr_scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=args.epoch)
-        best_acc = 0
+            bagging_subset = Subset(train_set, bagging_indices)
+            bagging_loader = DataLoader(
+                bagging_subset, 
+                batch_size=args.batch_size,
+                shuffle=True
+            )
 
-        for e in range(args.epoch):
-            train_acc = train(train_set, net, optimizer, loss_func)
-            test_acc = test(val_set, net, e)
-            lr_scheduler.step()
 
-            print(f'training acc: {train_acc:.4f}, testing acc: {test_acc:.4f}')
+            net = init_net(args.model)
+            net = net.to(device)
+            loss_func = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
+            optimizer = optim.SGD(
+                net.parameters(), 
+                lr=args.lr, 
+                weight_decay=args.weight_decay,
+                momentum=args.momentum,
+                nesterov=args.nesterov
+            ) 
+            lr_scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=args.epoch)
+            best_acc = 0
+            for e in range(args.epoch):
+                train_acc = train(bagging_loader, net, optimizer, loss_func)
+                test_acc = test(val_loader, net, e)
+                lr_scheduler.step()
 
-            if test_acc >= best_acc:
-                best_acc = test_acc
-                torch.save(net, os.path.join(args.save_dir, f'{args.model}_{args.task}.pth'))
-                print(f'saving new model with test_acc: {test_acc:.6f}')
+                print(f'training acc: {train_acc:.4f}, testing acc: {test_acc:.4f}')
+
+                if test_acc >= best_acc:
+                    best_acc = test_acc
+                    torch.save(net, os.path.join(args.save_dir, 'bagging', f'{args.model}_{args.task}_fold_{fold}_bagging_{b}.pth'))
+                    print(f'saving new model with test_acc: {test_acc:.6f}')
 
