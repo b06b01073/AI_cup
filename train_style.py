@@ -129,11 +129,10 @@ if __name__ == '__main__':
 
     games, labels = np.load(args.games_path), np.load(args.labels_path)
     games = np.array([goutils.crop_move_as_center(game) for game in games])
+    # games, labels = goutils.pre_augmentation(games, labels)
 
     kfold = KFold(n_splits=args.folds)
     
-    # optimizer = optim.Adam(net.parameters(), lr=args.eta_start)
-
     for fold, (train_indices, val_indices) in enumerate(kfold.split(games)):
         print(f'Fold {fold}')
 

@@ -275,3 +275,22 @@ def crop_move_as_center(game_features, pad_size=9, crop_size=9):
 
 
     return cropped_game_features.copy()
+
+
+def pre_augmentation(games, labels):
+    game_features = []
+    augmented_labels = []
+
+    for game, label in zip(games, labels):
+        sym_games = gogame.all_symmetries(game) # 8 times
+        game_features.append(sym_games)
+
+        augmented_labels += [label for _ in range(len(sym_games))]
+
+    
+    game_features = np.array(game_features)
+    game_features = game_features.reshape((-1, govars.FEAT_CHNLS, 9, 9))
+
+    augmented_labels = np.array(augmented_labels)
+
+    return game_features.copy(), augmented_labels.copy()
