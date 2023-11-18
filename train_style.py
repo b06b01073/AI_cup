@@ -129,8 +129,6 @@ if __name__ == '__main__':
 
     games, labels = np.load(args.games_path), np.load(args.labels_path)
     games = np.array([goutils.crop_move_as_center(game) for game in games])
-    games = games[:100]
-    labels = labels[:100]
 
     kfold = KFold(n_splits=args.folds)
     
