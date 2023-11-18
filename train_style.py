@@ -5,11 +5,9 @@ import GoDataset
 import govars
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
 from tqdm import tqdm
 from torchvision import models
 import numpy as np
-from sklearn.model_selection import KFold
 from torch.utils.data import DataLoader, Subset
 import goutils
 
@@ -96,14 +94,17 @@ def eval_ensemble(dataset, preds_proba):
     return correct_preds / total_preds
 
 def init_net(model):
-
     if 'resnet' in model:
-        print('Training ResNet')
-        # net = ResNet(num_layers=20)
+        print(f'Training {model}')
         if model == 'resnet18':
             net = models.resnet18(weights=None)
-            new_conv1 = nn.Conv2d(govars.FEAT_CHNLS, 64, kernel_size=7, stride=1, padding=3)
-            net.conv1 = new_conv1
+        elif model == 'resnet34':
+            net = models.resnet34(weights=None)
+        elif model == 'resnet50':
+            net = models.resnet50(weights=None)
+
+        new_conv1 = nn.Conv2d(govars.FEAT_CHNLS, 64, kernel_size=7, stride=1, padding=3)
+        net.conv1 = new_conv1
         in_features = net.fc.in_features
         net.fc = nn.Linear(in_features, govars.STYLE_CAT)
 
@@ -117,10 +118,8 @@ if __name__ == '__main__':
     parser.add_argument('--lr', type=float, default=1e-3)
 
     parser.add_argument('--epoch', '-e', type=int, default=100)
-    parser.add_argument('--num_class', '-c', default=3, type=int)
-    parser.add_argument('--weight_decay', '--wd', default=1e-4, type=float)
+    parser.add_argument('--weight_decay', '--wd', default=5e-4, type=float)
     parser.add_argument('--label_smoothing', '--ls', default=0, type=float)
-    parser.add_argument('--pretrained', '--pt', type=str)
     parser.add_argument('--save_dir', '--sd', type=str, default='./model_params')
     parser.add_argument('--folds', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=256)
@@ -186,13 +185,13 @@ if __name__ == '__main__':
         ) 
 
 
-            # training and testing loop
+        # training and testing loop
         train_acc = train(bagging_loader, net, optimizer, loss_func, args.epoch)
 
         test_acc, preds_proba = test(val_loader, net)
 
         print(f'saving new model with test acc: {test_acc:.6f}, train acc: {train_acc:.6f}')
-        torch.save(net, os.path.join(args.save_dir, 'bagging', f'{args.model}_bagging_{b}.pth'))
+        torch.save(net, os.path.join(args.save_dir, 'bagging', f'{args.model}_bagging_{b}_wd_{args.weight_decay}_port_{args.bagging_portion}.pth'))
 
         ensemble_preds_prob += preds_proba
 
