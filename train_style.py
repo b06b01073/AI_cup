@@ -22,7 +22,8 @@ def train(dataset, net, optimizer, loss_func, epochs):
     '''
     net.train()
 
-    for _ in tqdm(range(epochs), dynamic_ncols=True, leave=True):
+    pbar = tqdm(range(epochs), dynamic_ncols=True, leave=True)
+    for _ in pbar:
         correct_preds = 0
         total_preds = 0
         for states, targets in dataset:
@@ -44,6 +45,8 @@ def train(dataset, net, optimizer, loss_func, epochs):
                 correct_preds += torch.sum(predicted_classes == targets).item()
 
                 total_preds += targets.shape[0]
+
+        pbar.set_description(f'acc: {correct_preds / total_preds}')
 
     return correct_preds / total_preds # return the acc of the last epoch
 
@@ -119,8 +122,6 @@ if __name__ == '__main__':
     parser.add_argument('--label_smoothing', '--ls', default=0, type=float)
     parser.add_argument('--pretrained', '--pt', type=str)
     parser.add_argument('--save_dir', '--sd', type=str, default='./model_params')
-    parser.add_argument('--momentum', type=float, default=0.9)
-    parser.add_argument('--nesterov', action='store_false')
     parser.add_argument('--folds', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--baggings', type=int, default=15)
