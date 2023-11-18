@@ -11,47 +11,32 @@ from torchvision import models
 import numpy as np
 from sklearn.model_selection import KFold
 from torch.utils.data import DataLoader, Subset
+import goutils
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def mixup(targets, states, lam):
-    batch_size = states.shape[0]
-
-    rand_indices = torch.randperm(batch_size)
-    
-    mixup_states = lam * states + (1 - lam) * states[rand_indices, :] 
-
-    original_targets, outer_targets = targets, targets[rand_indices]
-
-    return original_targets, outer_targets, mixup_states 
-
-def train(dataset, net, optimizer, loss_func, alpha):
+def train(dataset, net, optimizer, loss_func, lr_scheduler, epochs):
     '''
         dataset(Dataloader)
         net(nn)
     '''
-
     net.train()
 
-    correct_preds = 0
-    total_preds = 0
+    for epoch in tqdm(range(epochs), dynamic_ncols=True):
+        for states, targets in dataset:
+            states = states.to(device)
+            targets = targets.to(device)
 
-    for states, targets in dataset:
-        states = states.to(device)
-        targets = targets.to(device)
+            preds = net(states) 
 
-        lam = np.random.beta(alpha, alpha) # lam * ori + (1 - lam) * outer
-        original_targets, outer_targets, mixup_states = mixup(targets, states, lam)
+            optimizer.zero_grad()
 
-        preds = net(mixup_states) 
+            loss = loss_func(preds, targets)
+            loss.backward()
+            optimizer.step()
 
-        optimizer.zero_grad()
+        lr_scheduler.step()
 
-        loss = lam * loss_func(preds, original_targets) + (1 - lam) * loss_func(preds, outer_targets)
-        loss.backward()
-        optimizer.step()
-
-    return loss.item()
 
 def test(dataset, net):
     '''
@@ -128,8 +113,7 @@ if __name__ == '__main__':
     parser.add_argument('--folds', type=int, default=10)
     parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--baggings', type=int, default=15)
-    parser.add_argument('--bagging_portion', type=float, default=0.9)
-    parser.add_argument('--mixup_alpha', type=float, default=1.0)
+    parser.add_argument('--bagging_portion', type=float, default=1)
     parser.add_argument('--num_workers', type=int, default=6)
     
 
@@ -144,6 +128,10 @@ if __name__ == '__main__':
 
 
     games, labels = np.load(args.games_path), np.load(args.labels_path)
+    games = np.array([goutils.crop_move_as_center(game) for game in games])
+    games = games[:100]
+    labels = labels[:100]
+
     kfold = KFold(n_splits=args.folds)
     
     # optimizer = optim.Adam(net.parameters(), lr=args.eta_start)
@@ -196,30 +184,22 @@ if __name__ == '__main__':
                 nesterov=args.nesterov
             ) 
             lr_scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=args.epoch)
-            best_acc = 0
             best_preds = None
 
 
             # training and testing loop
-            with tqdm(range(args.epoch), dynamic_ncols=True) as pbar:
-                for epoch in pbar:
-                    train_loss = train(bagging_loader, net, optimizer, loss_func, args.mixup_alpha)
-                    test_acc, preds_proba = test(val_loader, net)
+            train_loss = train(bagging_loader, net, optimizer, loss_func, lr_scheduler, args.epoch)
 
-                    if test_acc >= best_acc:
-                        best_acc = test_acc
-                        best_preds = preds_proba
-                        torch.save(net, os.path.join(args.save_dir, 'bagging', f'{args.model}_fold_{fold}_bagging_{b}.pth'))
+            test_acc, preds_proba = test(val_loader, net)
 
-                    lr_scheduler.step()
+            print(f'saving new model with acc: {test_acc:.6f}')
+            torch.save(net, os.path.join(args.save_dir, 'bagging', f'{args.model}_fold_{fold}_bagging_{b}.pth'))
 
-                    pbar.set_description(f'train loss: {train_loss:.4f}, val: {test_acc:.4f}, best: {best_acc:.4f}')
-
-            print(f'saving new model with best_acc: {best_acc:.6f}')
             ensemble_preds_prob += preds_proba
 
 
-            individual_perf.append(best_acc)
+            individual_perf.append(test_acc)
+
         ensemble_preds_prob /= args.baggings # just to normalize (not necessary)
         ensemble_acc = eval_ensemble(val_set, ensemble_preds_prob)
 
