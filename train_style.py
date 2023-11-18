@@ -15,14 +15,16 @@ import goutils
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-def train(dataset, net, optimizer, loss_func, lr_scheduler, epochs):
+def train(dataset, net, optimizer, loss_func, epochs):
     '''
         dataset(Dataloader)
         net(nn)
     '''
     net.train()
 
-    for epoch in tqdm(range(epochs), dynamic_ncols=True):
+    for _ in tqdm(range(epochs), dynamic_ncols=True, leave=True):
+        correct_preds = 0
+        total_preds = 0
         for states, targets in dataset:
             states = states.to(device)
             targets = targets.to(device)
@@ -35,7 +37,16 @@ def train(dataset, net, optimizer, loss_func, lr_scheduler, epochs):
             loss.backward()
             optimizer.step()
 
-        lr_scheduler.step()
+            with torch.no_grad():
+                preds_proba = torch.softmax(preds, dim=1)
+                predicted_classes = torch.argmax(preds_proba, dim=1)
+                # Compare the predicted classes to the target labels
+                correct_preds += torch.sum(predicted_classes == targets).item()
+
+                total_preds += targets.shape[0]
+
+    return correct_preds / total_preds # return the acc of the last epoch
+
 
 
 def test(dataset, net):
@@ -100,11 +111,11 @@ if __name__ == '__main__':
     parser.add_argument('--games_path', type=str, default='./dataset/training/games.npy')
     parser.add_argument('--labels_path', type=str, default='./dataset/training/labels.npy')
     parser.add_argument('--model', type=str, default='resnet18')
-    parser.add_argument('--lr', type=float, default=1e-2)
+    parser.add_argument('--lr', type=float, default=1e-3)
 
     parser.add_argument('--epoch', '-e', type=int, default=100)
     parser.add_argument('--num_class', '-c', default=3, type=int)
-    parser.add_argument('--weight_decay', '--wd', default=5e-4, type=float)
+    parser.add_argument('--weight_decay', '--wd', default=1e-4, type=float)
     parser.add_argument('--label_smoothing', '--ls', default=0, type=float)
     parser.add_argument('--pretrained', '--pt', type=str)
     parser.add_argument('--save_dir', '--sd', type=str, default='./model_params')
@@ -129,76 +140,66 @@ if __name__ == '__main__':
 
     games, labels = np.load(args.games_path), np.load(args.labels_path)
     games = np.array([goutils.crop_move_as_center(game) for game in games])
-    # games, labels = goutils.pre_augmentation(games, labels)
+    games, labels = goutils.pre_augmentation(games, labels)
+    test_len = int(len(games) * 0.1)
 
-    kfold = KFold(n_splits=args.folds)
+    train_set = GoDataset.StyleDataset(
+        labels=labels[test_len:],
+        games=games[test_len:],
+    )
     
-    for fold, (train_indices, val_indices) in enumerate(kfold.split(games)):
-        print(f'Fold {fold}')
+    val_set = GoDataset.StyleDataset(
+        labels=labels[:test_len],
+        games=games[:test_len],
+    )
 
-        train_set = GoDataset.StyleDataset(
-            labels=labels[train_indices],
-            games=games[train_indices],
-            augment=True
-        )
-        
-        val_set = GoDataset.StyleDataset(
-            labels=labels[val_indices],
-            games=games[val_indices],
-            augment=False
-        )
+    val_loader = DataLoader(
+        dataset=val_set,
+        batch_size=args.batch_size,
+        num_workers=args.num_workers
+    )
 
-        val_loader = DataLoader(
-            dataset=val_set,
+
+    individual_perf = []
+    ensemble_preds_prob = torch.zeros((len(val_set), govars.STYLE_CAT,)).to(device)
+
+    for b in range(args.baggings):
+        bagging_indices = np.random.choice(range(len(train_set)), int(len(train_set) * args.bagging_portion))
+
+        bagging_subset = Subset(train_set, bagging_indices)
+        bagging_loader = DataLoader(
+            bagging_subset, 
             batch_size=args.batch_size,
+            shuffle=True,
             num_workers=args.num_workers
         )
 
 
-        individual_perf = []
-        ensemble_preds_prob = torch.zeros((len(val_set), govars.STYLE_CAT,)).to(device)
-
-        for b in range(args.baggings):
-            bagging_indices = np.random.choice(range(len(train_set)), int(len(train_set) * args.bagging_portion))
-
-            bagging_subset = Subset(train_set, bagging_indices)
-            bagging_loader = DataLoader(
-                bagging_subset, 
-                batch_size=args.batch_size,
-                shuffle=True,
-                num_workers=args.num_workers
-            )
-
-
-            net = init_net(args.model)
-            net = net.to(device)
-            loss_func = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
-            optimizer = optim.SGD(
-                net.parameters(), 
-                lr=args.lr, 
-                weight_decay=args.weight_decay,
-                momentum=args.momentum,
-                nesterov=args.nesterov
-            ) 
-            lr_scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=args.epoch)
-            best_preds = None
+        net = init_net(args.model)
+        net = net.to(device)
+        loss_func = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
+        optimizer = optim.Adam(
+            net.parameters(), 
+            lr=args.lr, 
+            weight_decay=args.weight_decay,
+        ) 
 
 
             # training and testing loop
-            train_loss = train(bagging_loader, net, optimizer, loss_func, lr_scheduler, args.epoch)
+        train_acc = train(bagging_loader, net, optimizer, loss_func, args.epoch)
 
-            test_acc, preds_proba = test(val_loader, net)
+        test_acc, preds_proba = test(val_loader, net)
 
-            print(f'saving new model with acc: {test_acc:.6f}')
-            torch.save(net, os.path.join(args.save_dir, 'bagging', f'{args.model}_fold_{fold}_bagging_{b}.pth'))
+        print(f'saving new model with test acc: {test_acc:.6f}, train acc: {train_acc:.6f}')
+        torch.save(net, os.path.join(args.save_dir, 'bagging', f'{args.model}_bagging_{b}.pth'))
 
-            ensemble_preds_prob += preds_proba
+        ensemble_preds_prob += preds_proba
 
 
-            individual_perf.append(test_acc)
+        individual_perf.append(test_acc)
 
-        ensemble_preds_prob /= args.baggings # just to normalize (not necessary)
-        ensemble_acc = eval_ensemble(val_set, ensemble_preds_prob)
+    ensemble_preds_prob /= args.baggings # just to normalize (not necessary)
+    ensemble_acc = eval_ensemble(val_set, ensemble_preds_prob)
 
-        print(f'Individual performance (fold {fold})', individual_perf)
-        print(f'ensemble acc: {ensemble_acc}')
+    print('Individual performance', individual_perf)
+    print(f'ensemble acc: {ensemble_acc}')

@@ -67,10 +67,9 @@ class GoDataset(Dataset):
 
 
 class StyleDataset(Dataset):
-    def __init__(self, labels, games, augment):
+    def __init__(self, labels, games):
         self.labels = labels
         self.games = games
-        self.augment = augment
 
     def __len__(self):
         return len(self.labels)
@@ -80,10 +79,7 @@ class StyleDataset(Dataset):
         game = self.games[idx]
         label = self.labels[idx]
 
-        if self.augment:
-            return gogame.random_symmetry(game), label
-        else:
-            return game, label
+        return game, label
 
 
 
