@@ -254,7 +254,7 @@ def strong_augment(board, crop, rand_move):
     return board
 
 
-def crop_move_as_center(game_features, pad_size=9, crop_size=9):
+def crop_move_as_center(game_features, pad_size=govars.REGION_SIZE, crop_size=govars.REGION_SIZE):
     half_crop_size = crop_size // 2
     last_move_r, last_move_c = np.where(game_features[-1] == 1)
 
@@ -289,7 +289,7 @@ def pre_augmentation(games, labels):
 
     
     game_features = np.array(game_features)
-    game_features = game_features.reshape((-1, govars.FEAT_CHNLS, 9, 9))
+    game_features = game_features.reshape((-1, govars.FEAT_CHNLS, govars.REGION_SIZE, govars.REGION_SIZE))
 
     augmented_labels = np.array(augmented_labels)
 

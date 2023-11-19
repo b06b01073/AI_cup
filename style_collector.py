@@ -66,9 +66,9 @@ if __name__ == '__main__':
 
     # run this block for the first time
     # game_features = fetch_features(games) 
-    # np.save('dataset/testing/play_style.npy', game_features)
+    # np.save('dataset/testing/play_style_11.npy', game_features)
     
-    game_features = np.load('dataset/testing/play_style.npy')
+    # game_features = np.load('dataset/testing/play_style_11.npy')
 
     with open(args.output, 'w') as f:
        

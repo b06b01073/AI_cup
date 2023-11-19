@@ -8,3 +8,4 @@ test.py
 result
 test_validation.py
 model_params
+*.sh

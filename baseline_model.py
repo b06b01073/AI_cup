@@ -1,6 +1,7 @@
 import torch.nn as nn
 import govars
 import torch
+from einops import rearrange
 
 class Baseline_CNN(nn.Module):
     def __init__(self, num_layers=8, hidden_dim=128):
@@ -29,11 +30,27 @@ class Baseline_CNN(nn.Module):
         return x
 
 
+class MLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.LeakyReLU(),
+            nn.Dropout(p=0.2),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LeakyReLU(),
+            nn.Dropout(p=0.2),
+            nn.Linear(hidden_dim, output_dim)
+        )
+
+    def forward(self, x):
+        x = rearrange(x, 'b c h w -> b (c h w)') # flatten
+        return self.net(x)
 
 
 
 class ResNet(nn.Module):
-    def __init__(self, num_layers=8, hidden_dim=128):
+    def __init__(self, num_layers=8, hidden_dim=64):
         # in the current version the shallower network perform better, need residual connections maybe?
         super().__init__()
         
@@ -42,15 +59,15 @@ class ResNet(nn.Module):
             nn.LeakyReLU(),
             nn.Conv2d(hidden_dim, hidden_dim, kernel_size=5, stride=1, padding=2), 
             nn.LeakyReLU()
-            ])
+        ])
 
         for _ in range(num_layers - 1):
             self.net.extend([ResBlock(hidden_dim, hidden_dim, kernel_size=3, stride=1, padding=1)])
 
         self.fc = nn.Sequential(
-            nn.Linear(hidden_dim * govars.PADDED_SIZE * govars.PADDED_SIZE, 1024),
+            nn.Linear(hidden_dim * govars.REGION_SIZE * govars.REGION_SIZE, 256),
             nn.LeakyReLU(),
-            nn.Linear(1024, 3)
+            nn.Linear(256, 3)
         )
         self.drop_out = nn.Dropout(p=0.2)
         
