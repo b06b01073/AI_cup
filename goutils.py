@@ -7,6 +7,9 @@ import numpy as np
 
 import torch
 
+
+from tqdm import tqdm
+
 def move_encode(move):
     if move == govars.PASS:
         one_hot = np.zeros((govars.ACTION_SPACE))
@@ -253,9 +256,9 @@ def strong_augment(board, crop, rand_move):
 
     return board
 
-
-def crop_move_as_center(game_features, pad_size=govars.REGION_SIZE, crop_size=govars.REGION_SIZE):
-    half_crop_size = crop_size // 2
+def crop_move_as_center(game_features, region_size):
+    pad_size = region_size
+    half_crop_size = region_size // 2
     last_move_r, last_move_c = np.where(game_features[-1] == 1)
 
     
@@ -277,19 +280,39 @@ def crop_move_as_center(game_features, pad_size=govars.REGION_SIZE, crop_size=go
     return cropped_game_features.copy()
 
 
-def pre_augmentation(games, labels):
+def pre_augmentation(games, labels, region_size):
+    print('augmenting')
     game_features = []
     augmented_labels = []
 
-    for game, label in zip(games, labels):
-        sym_games = gogame.all_symmetries(game) # 8 times
-        game_features.append(sym_games)
+    
 
+    for i in tqdm(range(len(games)), dynamic_ncols=True):
+        game = games[i]
+        label = labels[i]
+        sym_games = gogame.all_symmetries(game) # 8 times
+        
+        # sym_len = len(sym_games)
+
+        # for i in range(sym_len):
+        #     game = sym_games[i]
+        #     flip = game.copy()
+        #     temp = flip[govars.BLACK]
+        #     flip[govars.BLACK] = flip[govars.WHITE]
+        #     flip[govars.WHITE] = temp
+        #     flip[govars.TURN_CHNL] = (flip[govars.TURN_CHNL] + 1) % 2
+        #     sym_games.append(flip)
+
+        game_features.append(sym_games)
         augmented_labels += [label for _ in range(len(sym_games))]
+
+
+
+
 
     
     game_features = np.array(game_features)
-    game_features = game_features.reshape((-1, govars.FEAT_CHNLS, govars.REGION_SIZE, govars.REGION_SIZE))
+    game_features = game_features.reshape((-1, govars.FEAT_CHNLS, region_size, region_size))
 
     augmented_labels = np.array(augmented_labels)
 

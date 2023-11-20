@@ -102,7 +102,7 @@ def eval_ensemble(dataset, preds_proba):
 
     return correct_preds / total_preds
 
-def init_net(model):
+def init_net(model, region_size):
     if 'resnet' in model:
         print(f'Training {model}')
         if model == 'resnet18':
@@ -130,12 +130,12 @@ def init_net(model):
         )
     elif model == 'mlp':
         net = MLP(
-            input_dim=govars.FEAT_CHNLS * govars.REGION_SIZE * govars.REGION_SIZE,
+            input_dim=govars.FEAT_CHNLS * region_size * region_size,
             hidden_dim=128,
             output_dim=3
         )
     elif model=='RESNET':
-        net = ResNet(num_layers=1)
+        net = ResNet(num_layers=1, region_size=region_size)
 
     return net
 
@@ -151,11 +151,12 @@ if __name__ == '__main__':
     parser.add_argument('--label_smoothing', '--ls', default=0, type=float)
     parser.add_argument('--save_dir', '--sd', type=str, default='./model_params')
     parser.add_argument('--folds', type=int, default=10)
-    parser.add_argument('--batch_size', type=int, default=64)
+    parser.add_argument('--batch_size', type=int, default=256)
     parser.add_argument('--baggings', type=int, default=15)
     parser.add_argument('--bagging_portion', type=float, default=1)
     parser.add_argument('--num_workers', type=int, default=6)
     parser.add_argument('--full', action='store_true')
+    parser.add_argument('--region_size', type=int, default=13)
     
 
 
@@ -165,13 +166,16 @@ if __name__ == '__main__':
         os.makedirs(args.save_dir)
 
 
+    print('processing data')
 
     games, labels = np.load(args.games_path), np.load(args.labels_path)
-    games = np.array([goutils.crop_move_as_center(game) for game in games])
-    games, labels = goutils.pre_augmentation(games, labels)
+    games = np.array([goutils.crop_move_as_center(game, args.region_size) for game in games])
+    games, labels = goutils.pre_augmentation(games, labels, args.region_size)
+
+    print('proccessed...')
 
     if not args.full:
-        test_len = int(len(games) * 0.1)
+        test_len = int(len(games) * 0.05)
 
         train_set = GoDataset.StyleDataset(
             labels=labels[test_len:],
@@ -188,6 +192,8 @@ if __name__ == '__main__':
             batch_size=args.batch_size,
             num_workers=args.num_workers
         )
+
+        print(len(train_set), len(val_set))
     else:
         print('using full training set')
         train_set = GoDataset.StyleDataset(
@@ -213,7 +219,7 @@ if __name__ == '__main__':
         )
 
 
-        net = init_net(args.model)
+        net = init_net(args.model, args.region_size)
         net = net.to(device)
         loss_func = nn.CrossEntropyLoss(label_smoothing=args.label_smoothing)
         optimizer = optim.Adam(

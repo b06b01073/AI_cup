@@ -50,7 +50,7 @@ class MLP(nn.Module):
 
 
 class ResNet(nn.Module):
-    def __init__(self, num_layers=8, hidden_dim=64):
+    def __init__(self, num_layers=8, hidden_dim=32, region_size=11):
         # in the current version the shallower network perform better, need residual connections maybe?
         super().__init__()
         
@@ -65,7 +65,7 @@ class ResNet(nn.Module):
             self.net.extend([ResBlock(hidden_dim, hidden_dim, kernel_size=3, stride=1, padding=1)])
 
         self.fc = nn.Sequential(
-            nn.Linear(hidden_dim * govars.REGION_SIZE * govars.REGION_SIZE, 256),
+            nn.Linear(hidden_dim * region_size * region_size, 256),
             nn.LeakyReLU(),
             nn.Linear(256, 3)
         )
