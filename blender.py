@@ -19,7 +19,7 @@ class MetaLearner(nn.Module):
         return self.net(x)
 
 class BlendingClassifier:
-    def __init__(self, estimators, meta_estimator, train_epochs=10, meta_epochs=20, device='cuda'):
+    def __init__(self, estimators, meta_estimator, train_epochs=4, meta_epochs=10, device='cuda'):
         '''
             estimators: a list of class of model 
             meta_estimator: the class of meta learner
@@ -73,10 +73,13 @@ class BlendingClassifier:
         train_accs, test_accs = self.train_meta_estimator()
         plt.plot(train_accs, label='train acc')
         plt.plot(test_accs, label='test acc')
-        plt.savefig('meta_curve.png')
+        plt.legend()
+        plt.savefig('fig/meta_curve.png')
 
 
-        print(train_accs, test_accs)
+        print(f'train accs of meta learner: {train_accs}')
+        print(f'test_accs of meta learner: {test_accs}')
+
 
 
 
@@ -203,8 +206,16 @@ class BlendingClassifier:
         self.meta_estimator.cpu()
 
         return train_accs, test_accs
+    
+    def eval_estimators(self, X, y):
+        estimator_acc = []
+        for estimator in self.estimators:
+            estimator_acc.append(self.eval_estimator(estimator, X, y))
+
+        return estimator_acc
 
     def eval_estimator(self, estimator, X, y):
+        estimator.to(self.device)
         estimator.eval()
         dataset = TensorDataset(torch.from_numpy(X), torch.from_numpy(y))
         loader = DataLoader(dataset, batch_size=256, num_workers=6)
@@ -222,5 +233,54 @@ class BlendingClassifier:
                 correct_preds += torch.sum(predicted_classes == y).item()
                 total_preds += y.shape[0]
                 
+        estimator.cpu()
         return correct_preds / total_preds
 
+
+    def pred_proba(self, X):
+        dataset = TensorDataset(torch.from_numpy(X), torch.zeros(X.shape)) # dummy labels
+        loader = DataLoader(dataset, batch_size=256, num_workers=6)
+        
+        with torch.no_grad():
+
+            # processing input of meta learner
+            total_preds = []
+            for estimator in self.estimators:
+                estimator.eval()
+                estimator.to(self.device)
+                estimator_pred = torch.empty(0)
+                for X, _ in loader:
+                    X = X.to(self.device)
+                    y_pred = estimator(X)
+                    y_pred = torch.softmax(y_pred, dim=1).cpu()
+
+                    estimator_pred = torch.concat((estimator_pred, y_pred), dim=0)
+                
+                total_preds.append(np.array(estimator_pred))
+                estimator.cpu()
+            
+            total_preds = np.array(total_preds)
+            total_preds = np.transpose(total_preds, (1, 0, 2))
+            total_preds = np.reshape(total_preds, (total_preds.shape[0], -1))
+
+            
+            # meta learner prediction
+            self.meta_estimator.eval()
+            self.meta_estimator.to(self.device)
+            meta_dataset = TensorDataset(torch.from_numpy(total_preds), torch.zeros(total_preds.shape)) # dummy labels
+            meta_loader = DataLoader(meta_dataset, batch_size=256, num_workers=6)
+            meta_preds = torch.empty(0)
+            for X, _ in meta_loader:
+                X = X.to(self.device)
+                y_pred = self.meta_estimator(X)
+                y_pred = torch.softmax(y_pred, dim=1).cpu()
+                meta_preds = torch.concat((meta_preds, y_pred), dim=0)
+
+            self.meta_estimator.cpu()
+
+        return meta_preds
+
+
+    def acc_score(self, X, y):
+        class_preds = torch.argmax(self.pred_proba(X), dim=1)
+        return (torch.sum(class_preds == torch.from_numpy(y)) / y.size).item()
