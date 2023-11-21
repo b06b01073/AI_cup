@@ -5,27 +5,29 @@ import numpy as np
 import torch
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+import os
 
 class MetaLearner(nn.Module):
-    def __init__(self, in_features, out_features, hidden_dim):
+    def __init__(self, in_features, out_features):
         super().__init__()
         self.net = nn.Sequential(
-            nn.Linear(in_features, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, out_features)
+            nn.Linear(in_features, out_features),
+            nn.Sigmoid(),
         )
 
     def forward(self, x):
         return self.net(x)
 
-class BlendingClassifier:
-    def __init__(self, estimators, meta_estimator, train_epochs=4, meta_epochs=10, device='cuda'):
+class BlendingClassifier(nn.Module):
+    def __init__(self, estimators, train_epochs=4, meta_epochs=15, device='cuda'):
         '''
             estimators: a list of class of model 
             meta_estimator: the class of meta learner
         '''
+        super().__init__()
+
         self.estimators = estimators
-        self.meta_estimator = meta_estimator
+        self.meta_estimator = MetaLearner(in_features=len(estimators) * 3, out_features=3)
 
         self.train_epochs = train_epochs
         self.device = device
@@ -39,7 +41,7 @@ class BlendingClassifier:
         self.meta_test_y = None
 
 
-    def fit(self, train_X, train_y, val_X, val_y, test_X, test_y):
+    def fit(self, train_X, train_y, val_X, val_y, test_X, test_y, bagging=True, save_path='model_params/blender.pth', plot=True):
         self.meta_train_X = [] # the inputs of meta learner are the output of estimator from the val set
         self.meta_train_y = val_y # the labels of val set are the labels for meta learner
 
@@ -47,9 +49,10 @@ class BlendingClassifier:
         self.meta_test_y = test_y # the labels (evaluation only) of test set are the labels for meta learner
         
         train_accs = []
-        for estimator in tqdm(self.estimators, dynamic_ncols=True, desc='fitting estimator'):
+        for estimator in tqdm(self.estimators, dynamic_ncols=True, desc='fitting estimators'):
             estimator.to(self.device)
-            pred_val, pred_test = self.train_estimator(estimator, train_X, train_y, val_X, test_X)
+
+            pred_val, pred_test = self.train_estimator(estimator, train_X.copy(), train_y.copy(), val_X, test_X, bagging)
             train_accs.append(self.eval_estimator(estimator, train_X, train_y))
     
             self.meta_train_X.append(pred_val)
@@ -70,11 +73,17 @@ class BlendingClassifier:
         self.meta_test_X = np.reshape(self.meta_test_X, (self.meta_test_X.shape[0], -1))
 
 
-        train_accs, test_accs = self.train_meta_estimator()
-        plt.plot(train_accs, label='train acc')
-        plt.plot(test_accs, label='test acc')
-        plt.legend()
-        plt.savefig('fig/meta_curve.png')
+        train_accs, test_accs = self.train_meta_estimator(save_path)
+
+
+        if plot:
+            if not os.path.exists('fig'):
+                print('mkdir fig')
+                os.mkdir('fig')
+            plt.plot(train_accs, label='train acc')
+            plt.plot(test_accs, label='test acc')
+            plt.legend()
+            plt.savefig('fig/meta_curve.png')
 
 
         print(f'train accs of meta learner: {train_accs}')
@@ -82,9 +91,7 @@ class BlendingClassifier:
 
 
 
-
-
-    def train_estimator(self, estimator, train_X, train_y, val_X, test_X):
+    def train_estimator(self, estimator, train_X, train_y, val_X, test_X, bagging):
         estimator.train()
         loss_func = nn.CrossEntropyLoss()
         optimizer = optim.Adam(
@@ -92,6 +99,12 @@ class BlendingClassifier:
             lr=1e-3, 
         ) 
         
+        if bagging:
+            bagging_indices = np.random.choice(range(len(train_X)), int(len(train_X)))
+            train_X = train_X[bagging_indices]
+            train_y = train_y[bagging_indices]
+
+
         train_set = TensorDataset(torch.from_numpy(train_X), torch.from_numpy(train_y))
         train_loader = DataLoader(train_set, batch_size=256, shuffle=True, num_workers=6)
 
@@ -127,7 +140,7 @@ class BlendingClassifier:
 
             # get pred_test 
             pred_test = torch.empty(0)
-            test_set = TensorDataset(torch.from_numpy(test_X), torch.zeros(np.shape(val_X))) # dummy label
+            test_set = TensorDataset(torch.from_numpy(test_X), torch.zeros(np.shape(test_X))) # dummy label
             test_loader = DataLoader(test_set, batch_size=256, num_workers=6)
             with torch.no_grad():
                 for X, _ in test_loader:
@@ -141,7 +154,7 @@ class BlendingClassifier:
         return np.array(pred_val), np.array(pred_test)
 
 
-    def train_meta_estimator(self):
+    def train_meta_estimator(self, save_path):
         self.meta_estimator.to(self.device)
 
         # fit the final estimator
@@ -187,6 +200,7 @@ class BlendingClassifier:
             self.meta_estimator.eval()            
             correct_preds = 0
             total_preds = 0
+            best_acc = 0
             with torch.no_grad():
                 for X, y in test_loader:
                     X, y = X.to(self.device), y.to(self.device)
@@ -198,7 +212,12 @@ class BlendingClassifier:
                     correct_preds += torch.sum(predicted_classes == y).item()
                     total_preds += y.shape[0]
 
-            test_accs.append(correct_preds / total_preds)
+            acc = correct_preds / total_preds
+            if acc > best_acc:
+                best_acc = acc
+                self.save(save_path)
+
+            test_accs.append(acc)
 
 
 
@@ -236,6 +255,8 @@ class BlendingClassifier:
         estimator.cpu()
         return correct_preds / total_preds
 
+
+   
 
     def pred_proba(self, X):
         dataset = TensorDataset(torch.from_numpy(X), torch.zeros(X.shape)) # dummy labels
@@ -281,6 +302,59 @@ class BlendingClassifier:
         return meta_preds
 
 
-    def acc_score(self, X, y):
-        class_preds = torch.argmax(self.pred_proba(X), dim=1)
+    def pred_proba_tta(self, X):
+        '''
+            make prediction with tta input: (dataset size, 8, c, h, w)
+            each estimator makes prediction base on the 8 given inputs and comes up with the mean prob of 8 outputs, which then serves as the input of meta learner
+        '''
+
+        with torch.no_grad():
+            dataset = torch.from_numpy(X) # dummy labels
+            total_preds = []
+            for estimator in self.estimators:
+                estimator.eval()
+                estimator.to(self.device)
+                estimator_pred = torch.empty(0)
+                for X in dataset:
+                    # X: (8, c, h, w)
+                    X = X.to(self.device)
+                    pred = estimator(X)
+
+
+                    pred = torch.softmax(pred, dim=1).mean(dim=0, keepdim=True).cpu()
+
+                    estimator_pred = torch.concat((estimator_pred, pred), dim=0)
+                
+                total_preds.append(np.array(estimator_pred))
+                estimator.cpu()
+
+            total_preds = np.array(total_preds)
+            total_preds = np.transpose(total_preds, (1, 0, 2))
+            total_preds = np.reshape(total_preds, (total_preds.shape[0], -1))
+
+            # meta learner prediction
+            self.meta_estimator.eval()
+            self.meta_estimator.to(self.device)
+            meta_dataset = TensorDataset(torch.from_numpy(total_preds), torch.zeros(total_preds.shape)) # dummy labels
+            meta_loader = DataLoader(meta_dataset, batch_size=256, num_workers=6)
+            meta_preds = torch.empty(0)
+            for X, _ in meta_loader:
+                X = X.to(self.device)
+                y_pred = self.meta_estimator(X)
+                y_pred = torch.softmax(y_pred, dim=1).cpu()
+                meta_preds = torch.concat((meta_preds, y_pred), dim=0)
+
+            self.meta_estimator.cpu()
+
+
+            return meta_preds
+            
+
+
+    def acc_score(self, X, y, tta=False):
+        class_preds = torch.argmax(self.pred_proba(X), dim=1) if not tta else torch.argmax(self.pred_proba_tta(X), dim=1)
         return (torch.sum(class_preds == torch.from_numpy(y)) / y.size).item()
+    
+
+    def save(self, save_path):
+        torch.save(self, save_path)

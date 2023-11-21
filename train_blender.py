@@ -4,11 +4,13 @@ import goutils
 from baseline_model import ResNet
 from tqdm import tqdm
 from argparse import ArgumentParser
+import gogame
 
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--num_estimators', '-e', type=int, default=5)
     parser.add_argument('--region_size', type=int, default=13)
+    parser.add_argument('--bagging', action='store_true')
     args = parser.parse_args()
 
 
@@ -23,18 +25,12 @@ if __name__ == '__main__':
     train_X, train_y = games[2*split:], labels[2*split:]
 
     train_X, train_y = goutils.pre_augmentation(train_X, train_y, region_size=args.region_size)
+    val_X, val_y = goutils.pre_augmentation(val_X, val_y, region_size=args.region_size)
 
     estimators = [ResNet(num_layers=1, region_size=args.region_size) for _ in range(args.num_estimators)]
 
-    final_estimator = MetaLearner(
-        in_features=args.num_estimators*3,
-        out_features=3,
-        hidden_dim=256,
-    )
-
     clf = BlendingClassifier(
         estimators,
-        final_estimator # final_estima
     )
 
 
@@ -44,8 +40,19 @@ if __name__ == '__main__':
         val_X,
         val_y,
         test_X,
-        test_y
+        test_y,
+        bagging=args.bagging
     )
 
 
     print(clf.acc_score(test_X, test_y))
+
+    sym_test_X = []
+    for X in test_X:
+        sym_X = gogame.all_symmetries(X)
+
+        sym_test_X.append(sym_X)
+
+    sym_test_X = np.array(sym_test_X)
+
+    print(clf.acc_score(sym_test_X, test_y, tta=True))
