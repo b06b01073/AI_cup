@@ -49,7 +49,7 @@ def fetch_features(games):
 
             go_env.make_move(go_move)
             last_move = move[0]
-        game_features.append(goutils.crop_move_as_center(go_env.game_features()))
+        game_features.append(goutils.crop_move_as_center(go_env.game_features(), region_size=13))
     return np.array(game_features)
 
 if __name__ == '__main__':
@@ -66,18 +66,18 @@ if __name__ == '__main__':
 
     # run this block for the first time
     # game_features = fetch_features(games) 
-    # np.save('dataset/testing/play_style_11.npy', game_features)
+    # np.save('dataset/testing/play_style_13.npy', game_features)
     
-    game_features = np.load('dataset/testing/play_style_11.npy')
+    game_features = np.load('dataset/testing/play_style_13.npy')
 
     with open(args.output, 'w') as f:
        
-        for path in os.listdir(args.ensemble_path):
+        for path in tqdm(os.listdir(args.ensemble_path), dynamic_ncols=True):
             net = torch.load(os.path.join(args.ensemble_path, path)).to(device)
             net.eval()
 
             preds = []
-            for feature in tqdm(game_features, dynamic_ncols=True):
+            for feature in game_features:
                 preds.append(predict(net, feature, args.tta))
 
             ensemble_preds += torch.stack(preds)

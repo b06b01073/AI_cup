@@ -280,28 +280,27 @@ def crop_move_as_center(game_features, region_size):
     return cropped_game_features.copy()
 
 
-def pre_augmentation(games, labels, region_size):
-    print('augmenting')
+def pre_augmentation(games, labels, region_size=govars.PADDED_SIZE):
     game_features = []
     augmented_labels = []
 
     
 
-    for i in tqdm(range(len(games)), dynamic_ncols=True):
+    for i in range(len(games)):
         game = games[i]
         label = labels[i]
         sym_games = gogame.all_symmetries(game) # 8 times
         
-        # sym_len = len(sym_games)
+        sym_len = len(sym_games)
 
-        # for i in range(sym_len):
-        #     game = sym_games[i]
-        #     flip = game.copy()
-        #     temp = flip[govars.BLACK]
-        #     flip[govars.BLACK] = flip[govars.WHITE]
-        #     flip[govars.WHITE] = temp
-        #     flip[govars.TURN_CHNL] = (flip[govars.TURN_CHNL] + 1) % 2
-        #     sym_games.append(flip)
+        for i in range(sym_len):
+            game = sym_games[i]
+            flip = game.copy()
+            temp = flip[govars.BLACK]
+            flip[govars.BLACK] = flip[govars.WHITE]
+            flip[govars.WHITE] = temp
+            flip[govars.TURN_CHNL] = (flip[govars.TURN_CHNL] + 1) % 2
+            sym_games.append(flip)
 
         game_features.append(sym_games)
         augmented_labels += [label for _ in range(len(sym_games))]

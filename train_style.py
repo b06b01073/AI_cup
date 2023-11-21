@@ -118,14 +118,14 @@ def init_net(model, region_size):
         net.fc = nn.Linear(in_features, govars.STYLE_CAT)
     elif model == 'vit':
         net = ViT(
-            image_size=9,
-            patch_size=3,
+            image_size=21,
+            patch_size=7,
             num_classes=3,
             num_heads=8,
-            num_layers=4,
+            num_layers=10,
             hidden_dim=768,
             mlp_dim=768,
-            dropout=0.1,
+            # dropout=0.1,
             in_channels=govars.FEAT_CHNLS,
         )
     elif model == 'mlp':
@@ -144,7 +144,7 @@ if __name__ == '__main__':
     parser.add_argument('--games_path', type=str, default='./dataset/training/games.npy')
     parser.add_argument('--labels_path', type=str, default='./dataset/training/labels.npy')
     parser.add_argument('--model', type=str, default='resnet18')
-    parser.add_argument('--lr', type=float, default=1e-3)
+    parser.add_argument('--lr', type=float, default=1e-4)
 
     parser.add_argument('--epoch', '-e', type=int, default=100)
     parser.add_argument('--weight_decay', '--wd', default=0, type=float)
@@ -170,16 +170,16 @@ if __name__ == '__main__':
 
     games, labels = np.load(args.games_path), np.load(args.labels_path)
     games = np.array([goutils.crop_move_as_center(game, args.region_size) for game in games])
-    games, labels = goutils.pre_augmentation(games, labels, args.region_size)
 
     print('proccessed...')
 
     if not args.full:
-        test_len = int(len(games) * 0.05)
+        test_len = int(len(games) * 0.1)
+        train_games, train_labels = goutils.pre_augmentation(games[test_len:], labels[test_len:], args.region_size)
 
         train_set = GoDataset.StyleDataset(
-            labels=labels[test_len:],
-            games=games[test_len:],
+            labels=train_labels,
+            games=train_games,
         )
         
         val_set = GoDataset.StyleDataset(
@@ -196,6 +196,7 @@ if __name__ == '__main__':
         print(len(train_set), len(val_set))
     else:
         print('using full training set')
+        games, labels = goutils.pre_augmentation(games, labels, args.region_size)
         train_set = GoDataset.StyleDataset(
             labels=labels,
             games=games,
