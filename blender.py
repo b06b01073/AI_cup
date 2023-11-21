@@ -266,7 +266,7 @@ class BlendingClassifier(nn.Module):
 
             # processing input of meta learner
             total_preds = []
-            for estimator in self.estimators:
+            for estimator in tqdm(self.estimators, dynamic_ncols=True):
                 estimator.eval()
                 estimator.to(self.device)
                 estimator_pred = torch.empty(0)
@@ -311,7 +311,7 @@ class BlendingClassifier(nn.Module):
         with torch.no_grad():
             dataset = torch.from_numpy(X) # dummy labels
             total_preds = []
-            for estimator in self.estimators:
+            for estimator in tqdm(self.estimators, dynamic_ncols=True):
                 estimator.eval()
                 estimator.to(self.device)
                 estimator_pred = torch.empty(0)
@@ -345,7 +345,6 @@ class BlendingClassifier(nn.Module):
                 meta_preds = torch.concat((meta_preds, y_pred), dim=0)
 
             self.meta_estimator.cpu()
-
 
             return meta_preds
             
