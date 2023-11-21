@@ -291,16 +291,16 @@ def pre_augmentation(games, labels, region_size=govars.PADDED_SIZE):
         label = labels[i]
         sym_games = gogame.all_symmetries(game) # 8 times
         
-        sym_len = len(sym_games)
+        # sym_len = len(sym_games)
 
-        for i in range(sym_len):
-            game = sym_games[i]
-            flip = game.copy()
-            temp = flip[govars.BLACK]
-            flip[govars.BLACK] = flip[govars.WHITE]
-            flip[govars.WHITE] = temp
-            flip[govars.TURN_CHNL] = (flip[govars.TURN_CHNL] + 1) % 2
-            sym_games.append(flip)
+        # for i in range(sym_len):
+        #     game = sym_games[i]
+        #     flip = game.copy()
+        #     temp = flip[govars.BLACK]
+        #     flip[govars.BLACK] = flip[govars.WHITE]
+        #     flip[govars.WHITE] = temp
+        #     flip[govars.TURN_CHNL] = (flip[govars.TURN_CHNL] + 1) % 2
+        #     sym_games.append(flip)
 
         game_features.append(sym_games)
         augmented_labels += [label for _ in range(len(sym_games))]
@@ -309,7 +309,6 @@ def pre_augmentation(games, labels, region_size=govars.PADDED_SIZE):
 
 
 
-    
     game_features = np.array(game_features)
     game_features = game_features.reshape((-1, govars.FEAT_CHNLS, region_size, region_size))
 
