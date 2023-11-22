@@ -51,7 +51,10 @@ def fetch_features(games):
 
             go_env.make_move(go_move)
             last_move = move[0]
-        game_features.append(goutils.crop_move_as_center(go_env.game_features(), region_size=13))
+        try:
+            game_features.append(goutils.crop_move_as_center(go_env.game_features(), region_size=13))
+        except:
+            print(game)
     return np.array(game_features)
 
 if __name__ == '__main__':
@@ -64,7 +67,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     ensemble_preds = 0
-    games, file_names, _ = GoParser.file_test_parser(args.test_file)
+    games, file_names = GoParser.style_test_parser(args.test_file)
     # games = remove_trailing_commas(games)
 
     # run this block for the first time

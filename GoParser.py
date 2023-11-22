@@ -15,8 +15,9 @@ def style_parser(path):
 def style_test_parser(path):
     df = open(path).read().splitlines()
     games = [i.split(',', 1)[-1] for i in df]
+    file_names = [i.split(',', 2)[0] for i in df]
     
-    return games
+    return games, file_names
 
 def file_test_parser(path):
     df = open(path).read().splitlines()
