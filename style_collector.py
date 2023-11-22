@@ -37,6 +37,8 @@ def fetch_features(games):
         last_move = 'W'
 
         for move in game:
+            if move == '':
+                break
 
             # handle the PASS scenario
             if move[0] == last_move:
@@ -63,13 +65,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
     ensemble_preds = 0
     games, file_names = GoParser.file_test_parser(args.test_file)
+    # games = remove_trailing_commas(games)
 
     # run this block for the first time
-    # game_features = fetch_features(games) 
+    game_features = fetch_features(games) 
     # np.save('dataset/testing/play_style_13.npy', game_features)
     
-    game_features = np.load('dataset/testing/play_style_13.npy')
-
+    # game_features = np.load('dataset/testing/play_style_13.npy')
     with open(args.output, 'w') as f:
        
         for path in tqdm(os.listdir(args.ensemble_path), dynamic_ncols=True):
