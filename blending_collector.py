@@ -4,8 +4,40 @@ import GoParser
 import torch
 import gogame
 from tqdm import tqdm
+import goutils
+from GoEnv import Go
+import govars
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+def fetch_features(games):
+    game_features = []
+    for game in tqdm(games):
+        game = game.split(',')
+        go_env = Go()
+
+        last_move = 'W'
+
+        for move in game:
+            if move == '':
+                break
+
+            # handle the PASS scenario
+            if move[0] == last_move:
+                # there's an in-between pass move
+                go_move, _ = goutils.move_encode(govars.PASS)
+                go_env.make_move(go_move)
+                
+
+            go_move, _ = goutils.move_encode(move) # go_move is for the go env, moves[move_id] is the one hot vector
+
+            go_env.make_move(go_move)
+            last_move = move[0]
+        try:
+            game_features.append(goutils.crop_move_as_center(go_env.game_features(), region_size=13))
+        except:
+            print(game)
+    return np.array(game_features)
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -14,9 +46,9 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=str)
 
     args = parser.parse_args()
-    games, file_names = GoParser.file_test_parser(args.test_file)
+    games, file_names = GoParser.style_test_parser(args.test_file)
 
-    game_features = np.load('dataset/testing/play_style_13.npy')
+    game_features = fetch_features(games) 
     sym_game_features = []
 
     for game_feature in game_features:
@@ -25,6 +57,7 @@ if __name__ == '__main__':
 
     blender = torch.load(args.model)
     blender.eval()
+    blender.device = device
 
     with torch.no_grad():
         sym_game_features = np.array(sym_game_features)
