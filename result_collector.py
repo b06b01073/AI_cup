@@ -43,7 +43,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    games, file_names = GoParser.file_test_parser(args.test_file)
+    games, file_names, pred_player = GoParser.file_test_parser(args.test_file)
+    games = games
+    file_name = file_names
 
     # ensemble actually shows no improvment currently
     preds = [[file_name, torch.zeros((govars.ACTION_SPACE-1,)).to(device)] for file_name in file_names]
@@ -52,7 +54,7 @@ if __name__ == '__main__':
         net = torch.load(model_path)
         net.to(device)
         net.eval()
-        for idx, game in enumerate(tqdm(games, desc=model_path)):
+        for idx, (game, pred_player) in enumerate(tqdm(zip(games, pred_player), desc=model_path)):
             game = game.split(',')
             go_env = Go()
 
@@ -72,6 +74,12 @@ if __name__ == '__main__':
 
                 go_env.make_move(go_move)
                 last_move = move[0]
+
+            if last_move == pred_player:
+                # the last move of the game is a PASS move from non pred_player
+                print('pass')
+                go_move, _ = goutils.move_encode(govars.PASS)
+                go_env.make_move(go_move)
 
             pred = predict(net, go_env.game_features(), args.visualize)
             

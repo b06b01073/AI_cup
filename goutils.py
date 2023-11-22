@@ -127,7 +127,12 @@ def test_time_predict(board, net, device):
         augmented_board = augmented_board.unsqueeze(dim=0)
         augmented_preds = net(augmented_board).squeeze()[:-1] # discard the PASS move
 
-        
+        # mask invalid move
+        for i in range(govars.ACTION_SPACE - 1):
+            action2d = move_decode(i)
+            if augmented_board[0, govars.INVD_CHNL, action2d[0] + 1, action2d[1] + 1]:
+                augmented_preds[i] = float('-inf')
+
         augmented_preds = torch.softmax(augmented_preds, dim=0).view(govars.SIZE, govars.SIZE)
 
         # restore the prediction to the original coord system

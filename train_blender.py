@@ -11,6 +11,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_estimators', '-e', type=int, default=5)
     parser.add_argument('--region_size', type=int, default=13)
     parser.add_argument('--bagging', action='store_true')
+    parser.add_argument('--save_path', type=str)
     args = parser.parse_args()
 
 
@@ -27,7 +28,7 @@ if __name__ == '__main__':
     train_X, train_y = goutils.pre_augmentation(train_X, train_y, region_size=args.region_size)
     val_X, val_y = goutils.pre_augmentation(val_X, val_y, region_size=args.region_size)
 
-    estimators = [ResNet(num_layers=1, region_size=args.region_size) for _ in range(args.num_estimators)]
+    estimators = [ResNet(num_layers=3, region_size=args.region_size) for _ in range(args.num_estimators)]
 
     clf = BlendingClassifier(
         estimators,
@@ -41,11 +42,11 @@ if __name__ == '__main__':
         val_y,
         test_X,
         test_y,
-        bagging=args.bagging
+        bagging=args.bagging,
+        save_path=args.save_path,
     )
 
 
-    print(clf.acc_score(test_X, test_y))
 
     sym_test_X = []
     for X in test_X:
@@ -55,4 +56,6 @@ if __name__ == '__main__':
 
     sym_test_X = np.array(sym_test_X)
 
+    print(clf.acc_score(test_X, test_y))
     print(clf.acc_score(sym_test_X, test_y, tta=True))
+    # print(clf.acc_score(sym_test_X, test_y, bf_tta=True))

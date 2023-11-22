@@ -64,7 +64,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     ensemble_preds = 0
-    games, file_names = GoParser.file_test_parser(args.test_file)
+    games, file_names, _ = GoParser.file_test_parser(args.test_file)
     # games = remove_trailing_commas(games)
 
     # run this block for the first time

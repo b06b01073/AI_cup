@@ -21,8 +21,9 @@ def style_test_parser(path):
 def file_test_parser(path):
     df = open(path).read().splitlines()
     games = [i.split(',', 2)[-1] for i in df]
+    pred_player = [i.split(',', 2)[1] for i in df]
     file_names = [i.split(',', 2)[0] for i in df]
-    return games, file_names
+    return games, file_names, pred_player
 
 if __name__ == '__main__':
     style_parser('./dataset/training/play_style_train.csv')

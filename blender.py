@@ -19,7 +19,7 @@ class MetaLearner(nn.Module):
         return self.net(x)
 
 class BlendingClassifier(nn.Module):
-    def __init__(self, estimators, train_epochs=4, meta_epochs=15, device='cuda'):
+    def __init__(self, estimators, train_epochs=5, meta_epochs=20, device='cuda'):
         '''
             estimators: a list of class of model 
             meta_estimator: the class of meta learner
@@ -166,7 +166,7 @@ class BlendingClassifier(nn.Module):
         loss_func = nn.CrossEntropyLoss()
         optimizer = optim.Adam(
             self.meta_estimator.parameters(), 
-            lr=1e-3, 
+            lr=1e-4, 
         ) 
 
         train_accs = []
@@ -266,7 +266,7 @@ class BlendingClassifier(nn.Module):
 
             # processing input of meta learner
             total_preds = []
-            for estimator in tqdm(self.estimators, dynamic_ncols=True):
+            for estimator in tqdm(self.estimators, dynamic_ncols=True, desc='pred_proba'):
                 estimator.eval()
                 estimator.to(self.device)
                 estimator_pred = torch.empty(0)
@@ -311,7 +311,7 @@ class BlendingClassifier(nn.Module):
         with torch.no_grad():
             dataset = torch.from_numpy(X) # dummy labels
             total_preds = []
-            for estimator in tqdm(self.estimators, dynamic_ncols=True):
+            for estimator in tqdm(self.estimators, dynamic_ncols=True, desc='pred_proba_tta'):
                 estimator.eval()
                 estimator.to(self.device)
                 estimator_pred = torch.empty(0)
@@ -348,10 +348,65 @@ class BlendingClassifier(nn.Module):
 
             return meta_preds
             
+    def pred_proba_bf_tta(self, X, passes=5):
+        '''
+            calculate meta preds `passes` num of times then take the mean, for each prediction form estimator, we randomly sample a element from the 8 syms
+        '''
+        with torch.no_grad():
+            dataset = torch.from_numpy(X) # dummy labels
+            total_meta_preds = torch.zeros((len(dataset), 3))
+            for _ in tqdm(range(passes), 'brute forcing', dynamic_ncols=True):
+                total_preds = []
+                for estimator in self.estimators:
+                    estimator.eval()
+                    estimator.to(self.device)
+                    estimator_pred = torch.empty(0)
+                    for X in dataset:
+                        # X: (8, c, h, w)
+                        X = X.to(self.device)
+                        rand_idx = np.random.randint(low=0, high=len(X))
+
+                        sampled_X = X[rand_idx].unsqueeze(dim=0)
+
+                        pred = estimator(sampled_X).cpu()
+
+                        estimator_pred = torch.concat((estimator_pred, pred), dim=0)
+                
+                    total_preds.append(np.array(estimator_pred))
+                    estimator.cpu()
+
+                total_preds = np.array(total_preds)
+                total_preds = np.transpose(total_preds, (1, 0, 2))
+                total_preds = np.reshape(total_preds, (total_preds.shape[0], -1))
+
+                # meta learner prediction
+                self.meta_estimator.eval()
+                self.meta_estimator.to(self.device)
+                meta_dataset = TensorDataset(torch.from_numpy(total_preds), torch.zeros(total_preds.shape)) # dummy labels
+                meta_loader = DataLoader(meta_dataset, batch_size=256, num_workers=6)
+                meta_preds = torch.empty(0)
+                for X, _ in meta_loader:
+                    X = X.to(self.device)
+                    y_pred = self.meta_estimator(X)
+                    y_pred = torch.softmax(y_pred, dim=1).cpu()
+                    meta_preds = torch.concat((meta_preds, y_pred), dim=0)
+
+                self.meta_estimator.cpu()
+
+                total_meta_preds += meta_preds
+        
+        return total_meta_preds / passes
 
 
-    def acc_score(self, X, y, tta=False):
-        class_preds = torch.argmax(self.pred_proba(X), dim=1) if not tta else torch.argmax(self.pred_proba_tta(X), dim=1)
+    def acc_score(self, X, y, tta=False, bf_tta=False):
+        if tta:
+            class_preds = torch.argmax(self.pred_proba_tta(X), dim=1)
+        elif bf_tta:
+            class_preds = torch.argmax(self.pred_proba_bf_tta(X), dim=1)
+        else:
+            class_preds = torch.argmax(self.pred_proba(X), dim=1) 
+
+
         return (torch.sum(class_preds == torch.from_numpy(y)) / y.size).item()
     
 

@@ -55,9 +55,9 @@ class ResNet(nn.Module):
         super().__init__()
         
         self.net = nn.ModuleList([
-            nn.Conv2d(govars.FEAT_CHNLS, hidden_dim, kernel_size=7, stride=1, padding=3), 
+            nn.Conv2d(govars.FEAT_CHNLS, hidden_dim, kernel_size=5, stride=1, padding=2), 
             nn.LeakyReLU(),
-            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=5, stride=1, padding=2), 
+            nn.Conv2d(hidden_dim, hidden_dim, kernel_size=3, stride=1, padding=1), 
             nn.LeakyReLU()
         ])
 
