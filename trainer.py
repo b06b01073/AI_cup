@@ -34,6 +34,8 @@ class Trainer:
                 print(f'saving new model with test_acc: {test_acc:.6f}')
                 patience_count = 0
             
+            torch.save(net, os.path.join(self.save_dir, 'last' + file_name))
+
             if patience_count > patience and patience != -1:
                 break
 
