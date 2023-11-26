@@ -285,11 +285,11 @@ def crop_move_as_center(game_features, region_size):
     return cropped_game_features.copy()
 
 
-def pre_augmentation(games, labels, region_size=govars.PADDED_SIZE):
+def pre_augmentation(games, labels):
     game_features = []
     augmented_labels = []
 
-    
+    _, c, h, w = games.shape
 
     for i in range(len(games)):
         game = games[i]
@@ -315,8 +315,36 @@ def pre_augmentation(games, labels, region_size=govars.PADDED_SIZE):
 
 
     game_features = np.array(game_features)
-    game_features = game_features.reshape((-1, govars.FEAT_CHNLS, region_size, region_size))
+    game_features = game_features.reshape((-1, c, h, w))
 
     augmented_labels = np.array(augmented_labels)
 
     return game_features.copy(), augmented_labels.copy()
+
+
+def fetch_features(games):
+    game_features = []
+    for game in tqdm(games, desc='fetch_features', dynamic_ncols=True):
+        game = game.split(',')
+        go_env = Go()
+
+        last_move = 'W'
+
+        for move in game:
+            if move == '':
+                break
+
+            # handle the PASS scenario
+            if move[0] == last_move:
+                # there's an in-between pass move
+                go_move, _ = move_encode(govars.PASS)
+                go_env.make_move(go_move)
+                
+
+            go_move, _ = move_encode(move) # go_move is for the go env, moves[move_id] is the one hot vector
+
+            go_env.make_move(go_move)
+            last_move = move[0]
+
+        game_features.append(go_env.style_features())
+    return np.array(game_features)

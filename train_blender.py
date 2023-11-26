@@ -5,6 +5,7 @@ from baseline_model import ResNet
 from tqdm import tqdm
 from argparse import ArgumentParser
 import gogame
+import govars
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -25,10 +26,10 @@ if __name__ == '__main__':
     val_X, val_y = games[split:2*split], labels[split:2*split]
     train_X, train_y = games[2*split:], labels[2*split:]
 
-    train_X, train_y = goutils.pre_augmentation(train_X, train_y, region_size=args.region_size)
-    val_X, val_y = goutils.pre_augmentation(val_X, val_y, region_size=args.region_size)
+    train_X, train_y = goutils.pre_augmentation(train_X, train_y)
+    val_X, val_y = goutils.pre_augmentation(val_X, val_y)
 
-    estimators = [ResNet(num_layers=3, region_size=args.region_size) for _ in range(args.num_estimators)]
+    estimators = [ResNet(in_channels=govars.FEAT_CHNLS, num_layers=3, region_size=args.region_size) for _ in range(args.num_estimators)]
 
     clf = BlendingClassifier(
         estimators,
@@ -58,4 +59,5 @@ if __name__ == '__main__':
 
     print(clf.acc_score(test_X, test_y))
     print(clf.acc_score(sym_test_X, test_y, tta=True))
+    print(clf.eval_estimators(test_X, test_y))
     # print(clf.acc_score(sym_test_X, test_y, bf_tta=True))

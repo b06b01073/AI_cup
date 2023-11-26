@@ -19,7 +19,7 @@ class MetaLearner(nn.Module):
         return self.net(x)
 
 class BlendingClassifier(nn.Module):
-    def __init__(self, estimators, train_epochs=5, meta_epochs=20, device='cuda'):
+    def __init__(self, estimators, train_epochs=4, meta_epochs=20, device='cuda'):
         '''
             estimators: a list of class of model 
             meta_estimator: the class of meta learner
@@ -93,7 +93,7 @@ class BlendingClassifier(nn.Module):
 
     def train_estimator(self, estimator, train_X, train_y, val_X, test_X, bagging):
         estimator.train()
-        loss_func = nn.CrossEntropyLoss()
+        loss_func = nn.CrossEntropyLoss(label_smoothing=0.1)
         optimizer = optim.Adam(
             estimator.parameters(), 
             lr=1e-3, 
@@ -215,7 +215,9 @@ class BlendingClassifier(nn.Module):
             acc = correct_preds / total_preds
             if acc > best_acc:
                 best_acc = acc
-                self.save(save_path)
+
+                if save_path is not None:
+                    self.save(save_path)
 
             test_accs.append(acc)
 
