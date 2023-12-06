@@ -66,21 +66,6 @@ class GoDataset(Dataset):
         return np.array(game_states, dtype=np.float32), np.array(moves, dtype=np.int_)
 
 
-class StyleDataset(Dataset):
-    def __init__(self, labels, games):
-        self.labels = labels
-        self.games = games
-
-    def __len__(self):
-        return len(self.labels)
-    
-
-    def __getitem__(self, idx):
-        game = self.games[idx]
-        label = self.labels[idx]
-
-        return game, label
-
 
 
 def get_loader(path, split, bootstrap=False):

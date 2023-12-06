@@ -93,7 +93,7 @@ class BlendingClassifier(nn.Module):
 
     def train_estimator(self, estimator, train_X, train_y, val_X, test_X, bagging):
         estimator.train()
-        loss_func = nn.CrossEntropyLoss(label_smoothing=0.1)
+        loss_func = nn.CrossEntropyLoss()
         optimizer = optim.Adam(
             estimator.parameters(), 
             lr=1e-3, 
