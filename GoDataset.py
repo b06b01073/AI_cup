@@ -66,7 +66,10 @@ class GoDataset(Dataset):
         return np.array(game_states, dtype=np.float32), np.array(moves, dtype=np.int_)
 
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> c79dcf5b6ea8ea53b08417d9ad9851f7c428b76c
 
 def get_loader(path, split, bootstrap=False):
     games = GoParser.file_parser(path)
@@ -81,25 +84,3 @@ def get_loader(path, split, bootstrap=False):
 
     return DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=12), DataLoader(test_dataset, batch_size=1, shuffle=False, num_workers=12)
 
-
-
-if __name__ == '__main__':
-    # dataset = GoDataset('./dataset/training/dan_train.csv')
-    # states, moves = dataset[0]
-    # for (state, move) in zip(states, moves):
-        # print(f'move: \n{goutils.move_2d_encode(np.argmax(move))}')
-        # print(f'state:\n {gogame.str(state[:, 1:-1, 1:-1])}')
-
-    labels, games = GoParser.style_parser('./dataset/training/play_style_train.csv')
-    dataset = StyleDataset(labels, games, augment=False)
-    
-    games = []
-    labels = []
-    
-
-    for game, label in tqdm(dataset):
-        games.append(game)
-        labels.append(label)
-
-    np.save('dataset/training/games.npy' , np.array(games))
-    np.save('dataset/training/labels.npy', np.array(labels))
